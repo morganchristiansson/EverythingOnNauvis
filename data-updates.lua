@@ -1,4 +1,5 @@
 
+require("prototypes.capsules")
 require("prototypes.recipes")
 require("prototypes.technologies")
 
