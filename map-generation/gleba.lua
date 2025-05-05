@@ -93,8 +93,12 @@ return function(terrain)
             data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["barnacles-decal"] = {}
             data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["coral-stunted"] = {}
             data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["coral-stunted-grey"] = {}
-            data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["nerve-roots-veins-dense"] = {}
-            data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["nerve-roots-veins-sparse"] = {}
+            data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["red-nerve-roots-veins-dense"] = {}
+            data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["red-nerve-roots-veins-sparse"] = {}
+            data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["purple-nerve-roots-veins-dense"] = {}
+            data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["purple-nerve-roots-veins-sparse"] = {}
+            data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["cream-nerve-roots-veins-dense"] = {}
+            data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["cream-nerve-roots-veins-sparse"] = {}
             data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["yellow-coral"] = {}
             data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["solo-barnacle"] = {}
             data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["curly-roots-orange"] = {}
