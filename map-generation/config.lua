@@ -19,20 +19,24 @@ return {
     gleba_water_frequency = 2,
     gleba_water_richness = 1,
 
-    fluorine_vent_size = 1,
-    fluorine_vent_frequency = 15,
+    lithium_brine_size = 20,
+    lithium_brine_frequency = 200,
+    lithium_brine_richness = 2,
+
+    fluorine_vent_size = 8,
+    fluorine_vent_frequency = 200,
     fluorine_vent_richness = 2,
 
-    vulcanus_volcanism_size = 1,
-    vulcanus_volcanism_frequency = 1,
+    vulcanus_volcanism_size = 0.7,
+    vulcanus_volcanism_frequency = 3.5,
     vulcanus_volcanism_richness = 1,
 
-    tungsten_ore_size = 1,
-    tungsten_ore_frequency = 10,
+    tungsten_ore_size = 6,
+    tungsten_ore_frequency = 200,
     tungsten_ore_richness = 2,
 
-    calcite_size = 1,
-    calcite_frequency = 10,
+    calcite_size = 3,
+    calcite_frequency = 160,
     calcite_richness = 2,
 
     sulfuric_acid_geyser_size = 1,
@@ -51,9 +55,9 @@ return {
     copper_ore_size = 0.352,
     copper_ore_richness = 0.35,
 
-    scrap_frequency = 1,
-    scrap_size = 0.5,
-    scrap_richness = 1,
+    scrap_frequency = 0.8,
+    scrap_size = 1.5,
+    scrap_richness = 1.2,
 
     iron_ore_frequency = 8.5,
     iron_ore_size = 0.8,
@@ -73,7 +77,7 @@ return {
     trees_frequency = 0.65,
     trees_size = 0.04,
 
-    ammonia_ocean_frequency = 1,
-    ammonia_ocean_size = 0.7,
+    ammonia_ocean_frequency = 4.5,
+    ammonia_ocean_size = 0.95,
     ammonia_ocean_richness = 1,
 }

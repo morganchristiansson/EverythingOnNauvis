@@ -37,6 +37,84 @@ data_util.delete_prototype("space-connection", "gleba-fulgora")
 data_util.delete_prototype("space-connection", "gleba-aquilo")
 data_util.delete_prototype("space-connection", "fulgora-aquilo")
 data.raw["space-connection"]["aquilo-solar-system-edge"].from = "nauvis2"
+data.raw["space-connection"]["aquilo-solar-system-edge"].length = 6000
+data.raw["space-connection"]["aquilo-solar-system-edge"].asteroid_spawn_definitions = {
+    {
+        asteroid = 'small-carbonic-asteroid',
+        spawn_points = {
+            {
+                distance = 0,
+                probability = 0,
+                speed = 0.1
+            },
+            {
+                distance = 1,
+                probability = 0.011,
+                speed = 0.1
+            },
+        }
+    },
+    {
+        asteroid = 'small-metallic-asteroid',
+        spawn_points = {
+            {
+                distance = 0,
+                probability = 0,
+                speed = 0.1
+            },
+            {
+                distance = 1,
+                probability = 0.012,
+                speed = 0.1
+            },
+        }
+    },
+    {
+        asteroid = 'small-oxide-asteroid',
+        spawn_points = {
+            {
+                distance = 0,
+                probability = 0,
+                speed = 0.1
+            },
+            {
+                distance = 1,
+                probability = 0.01,
+                speed = 0.1
+            },
+        }
+    },
+}
+data.raw["space-location"]["solar-system-edge"].distance = 20
+data.raw["space-location"]["solar-system-edge"].solar_power_in_space = 5000
+data.raw["space-location"]["solar-system-edge"].asteroid_spawn_influence = 0
+data.raw["space-location"]["solar-system-edge"].asteroid_spawn_definitions = {
+    {
+        type = 'asteroid-chunk',
+        asteroid = 'carbonic-asteroid-chunk',
+        probability = 0.05,
+        speed = 0.4
+    },
+    {
+        type = 'asteroid-chunk',
+        asteroid = 'metallic-asteroid-chunk',
+        probability = 0.05,
+        speed = 0.4
+    },
+    {
+        type = 'asteroid-chunk',
+        asteroid = 'oxide-asteroid-chunk',
+        probability = 0.05,
+        speed = 0.4
+    },
+    {
+        asteroid = 'big-promethium-asteroid',
+        probability = 0.002,
+        speed = 0.05
+    },
+}
+
+
 -- data_util.delete_prototype("space-connection", "aquilo-solar-system-edge")
 
 -- remove space age menu simulations that break

@@ -136,17 +136,13 @@ return function(terrain)
 
 
             -- Gleba yumako / jellynut ribbons
-            data.raw["noise-expression"]["gleba_biome_mask_green"].expression = "floor(abs_y / 128) % 2 == 0"
-            data.raw["noise-expression"]["gleba_biome_mask_red"].expression = "floor(abs_y / 128) % 2 == 1"
+            data.raw["noise-expression"]["gleba_biome_mask_green"].expression = "floor(abs_y / 80) % 2 == 0"
+            data.raw["noise-expression"]["gleba_biome_mask_red"].expression = "floor(abs_y / 80) % 2 == 1"
         end,
 
         generate = function()
-            local gleba_spawner =
-            "max(0.01 * gleba_starting_enemies, max(min(0.02, enemy_autoplace_base(0, 8)), min(0.001, gleba_fertile_spots_coastal * 5000 - gleba_biome_mask_green * 25000)) * (distance > 500 * gleba_starting_area_multiplier)) * gleba_above_deep_water_mask"
-            local gleba_spawner_small =
-            "max(0.02 * gleba_starting_enemies, 0.02 * gleba_starting_enemies_safe, min(0.02, enemy_autoplace_base(0, 8)), min(0.001, gleba_fertile_spots_coastal * 5000 - gleba_biome_mask_green * 25000)) * gleba_above_deep_water_mask"
-            data.raw["noise-expression"]["gleba_spawner"].expression = "mask_prevent_fixed(mask_prevent_aquilo(mask_prevent_vulcanus(mask_allow_gleba(" .. gleba_spawner .. "))))"
-            data.raw["noise-expression"]["gleba_spawner_small"].expression = "mask_prevent_fixed(mask_prevent_aquilo(mask_prevent_vulcanus(mask_allow_gleba(" .. gleba_spawner_small .. "))))"
+            data.raw["noise-expression"]["gleba_spawner"].expression = "0"
+            data.raw["noise-expression"]["gleba_spawner_small"].expression = "mask_prevent_fixed(mask_prevent_aquilo(mask_prevent_vulcanus(mask_allow_gleba(0.005))))"
             -- New noise expressions and noise functions
             data:extend({
                 -- Create mask for gleba territory
@@ -162,10 +158,10 @@ return function(terrain)
                                 seed0 = map_seed,\z
                                 seed1 = 1,\z
                                 candidate_spot_count = 1,\z
-                                suggested_minimum_candidate_point_spacing = 400,\z
+                                suggested_minimum_candidate_point_spacing = 200,\z
                                 skip_span = 2,\z
                                 skip_offset = 0,\z
-                                region_size = 600,\z
+                                region_size = 300,\z
                                 density_expression = volcano_area / volcanism_sq,\z
                                 spot_quantity_expression = volcano_spot_radius * volcano_spot_radius,\z
                                 spot_radius_expression = volcano_spot_radius,\z
@@ -175,7 +171,7 @@ return function(terrain)
                                 maximum_spot_basement_radius = volcano_spot_radius})",
 
                         volcano_area = "lerp(vulcanus_mountains_biome_full_pre_volcano, 0, vulcanus_starting_area)",
-                        volcano_spot_radius = "200",
+                        volcano_spot_radius = "100",
                         volcanism =
                         "0.3 + 0.7 * slider_rescale(control:gleba_water:size, 3) / slider_rescale(control:gleba_water:frequency, 3)",
                         volcanism_sq = "volcanism * volcanism",

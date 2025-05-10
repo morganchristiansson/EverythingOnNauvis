@@ -8,7 +8,19 @@ titan_biter.max_health = 30000
 titan_biter.attack_parameters.animation = biterattackanimation(titan_biter_scale, titan_biter_tint1, titan_biter_tint2)
 titan_biter.run_animation = biterrunanimation(titan_biter_scale, titan_biter_tint1, titan_biter_tint2)
 titan_biter.water_reflection = biter_water_reflection(titan_biter_scale)
-
+titan_biter.resistances =
+{
+  {
+    type = "physical",
+    decrease = 16,
+    percent = 10
+  },
+  {
+    type = "explosion",
+    decrease = 16,
+    percent = 10
+  }
+}
 
 
 local gargantuan_biter_scale = 2
@@ -21,7 +33,19 @@ gargantuan_biter.max_health = 300000
 gargantuan_biter.attack_parameters.animation = biterattackanimation(gargantuan_biter_scale, gargantuan_biter_tint1, gargantuan_biter_tint2)
 gargantuan_biter.run_animation = biterrunanimation(gargantuan_biter_scale, gargantuan_biter_tint1, gargantuan_biter_tint2)
 gargantuan_biter.water_reflection = biter_water_reflection(gargantuan_biter_scale)
-
+gargantuan_biter.resistances =
+{
+  {
+    type = "physical",
+    decrease = 20,
+    percent = 10
+  },
+  {
+    type = "explosion",
+    decrease = 20,
+    percent = 10
+  }
+}
 
 
 local scale_spitter_titan = 1.7

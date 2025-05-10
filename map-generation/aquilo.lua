@@ -70,7 +70,7 @@ return function(terrain)
                 {
                     type = "noise-expression",
                     name = "aquilo_ammonia_depth",
-                    expression = "aquilo_max_elevation - 4"
+                    expression = "aquilo_max_elevation - 5"
                 },
                 {
                     type = "noise-expression",
@@ -87,9 +87,9 @@ return function(terrain)
                         "elevation_magnitude * (0.25 * aquilo_detail + 3 * aquilo_macro * starting_macro_multiplier)",
                         -- if most of the world is flooded make sure starting areas still have land
                         starting_island =
-                        "aquilo_main + elevation_magnitude * (2.5 - distance * segmentation_multiplier / 200)",
+                        "aquilo_main + elevation_magnitude * (5 - distance * segmentation_multiplier / 200)",
                         starting_macro_multiplier = "clamp(distance * aquilo_segmentation_multiplier / 2000, 0, 1)",
-                        west_bias = "aquilo_main + elevation_magnitude * (2 + x * segmentation_multiplier / 500)",
+                        west_bias = "aquilo_main + elevation_magnitude * (5 + x * segmentation_multiplier / 500)",
                     }
                 },
                 {
