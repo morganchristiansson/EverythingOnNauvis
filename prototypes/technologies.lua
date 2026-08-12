@@ -68,7 +68,7 @@ data.raw.technology["heating-tower"].prerequisites = {"concrete"}
 
 -- Fulgora
 data.raw.technology["lightning-collector"].hidden = true
-data.raw.technology["holmium-processing"].research_trigger = {type = "mine-entity", entity = "holmium-ore"}
+data.raw.technology["holmium-processing"].research_trigger = {type = "mine-entity", entities = {"holmium-ore"}}
 data.raw.technology["recycling"].prerequisites = {"processing-unit", "production-science-pack"}
 data.raw.technology["recycling"].research_trigger = nil
 data.raw.technology["recycling"].unit = {
