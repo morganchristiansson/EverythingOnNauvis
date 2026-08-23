@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.1.9
+Date: 2025-05-XX
+  Bugfixes:
+    - Atomic bombs no longer create ammoniacal-ocean and lava tiles on Nauvis. Surface conditions are now kept for explosion prototypes so only the vanilla nuclear-ground effect applies (matches vanilla Nauvis behaviour).
+---------------------------------------------------------------------------------------------------
 Version: 0.1.8
 Date: 2025-05-05
   Changes:
