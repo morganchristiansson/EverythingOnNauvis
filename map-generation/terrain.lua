@@ -3,7 +3,6 @@
 --------------------------------------------------------------------------------
 local data_util = require("data-util")
 
-
 local terrain = {}
 
 function terrain.mask_nauvis_territory(decorative, decorative_type)
@@ -762,6 +761,11 @@ end
 data.raw["autoplace-control"]["gleba_plants"].can_be_disabled = true
 data.raw["autoplace-control"]["gleba_water"].can_be_disabled = true
 
+-- Scalar tuning knobs, overridable per map via property_expression_names
+-- (e.g. map exchange string or console) without a mod restart.
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["eon_gleba_south_offset"] = "eon_gleba_south_offset"
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["eon_gleba_deep_south_cap"] = "eon_gleba_deep_south_cap"
+
 -- START: Update noise expressions
 -- Mask gleba plants to gleba terrain
 data.raw["noise-expression"]["gleba_plants_noise"].expression = "eon_mask_gleba_territory(abs(multioctave_noise{x = x,\z
@@ -802,6 +806,23 @@ data.raw.tile["natural-yumako-soil"].autoplace.probability_expression = "eon_yum
 
 data:extend({
   -- Noise functions
+  {
+    -- How many tiles south of the map center Gleba terrain starts.
+    -- Overridable per map via Nauvis map-gen settings property_expression_names,
+    -- so no mod restart is needed and it applies to newly generated chunks.
+    type = "noise-expression",
+    name = "eon_gleba_south_offset",
+    expression = "1000"
+  },
+  {
+    -- Caps how strongly the south pushes toward Gleba once past the transition zone.
+    -- Deep-south Gleba condition becomes "noise_sum > -cap": higher values = more Gleba,
+    -- lower/negative values = more Nauvis gaps (and thus more biter territory) deep south.
+    -- Overridable per map via Nauvis map-gen settings property_expression_names.
+    type = "noise-expression",
+    name = "eon_gleba_deep_south_cap",
+    expression = "1"
+  },
   {
     type = "noise-expression",
     name = "eon_gleba_mask",
@@ -862,8 +883,10 @@ data:extend({
                                                           output_scale = 1,\z
                                                           octave_output_scale_multiplier = 3,\z
                                                           octave_input_scale_multiplier = 1/3}",
-      y_offset = "y - 1000",  -- gleba starts around 1000 tiles to the south
-      south_offset = "y_offset / (1 + pow(2, 0.01 * y_offset)) + 0.1 * y_offset - 60"
+      y_offset = "y - eon_gleba_south_offset",  -- gleba starts around eon_gleba_south_offset tiles to the south
+      -- The linear term originally grew forever, making far-south tiles pure Gleba (no Nauvis
+      -- pockets, no biter nests). The cap keeps mostly Gleba with regular Nauvis gaps.
+      south_offset = "min(y_offset / (1 + pow(2, 0.01 * y_offset)) + 0.1 * y_offset - 60, eon_gleba_deep_south_cap)"
     }
   },
   {
