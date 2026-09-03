@@ -4,17 +4,16 @@
 #
 ################################################################################
 
-import glob
 import os
 import re
 import zipfile
-from typing import List
 
 MOD_NAME = "EverythingOnNauvis-morganc"
 PATH = os.getcwd()
-INFO_JSON_PATH = fr"{PATH}\info.json"
+INFO_JSON_PATH = os.path.join(PATH, "info.json")
 INFO_JSON_VERSION_REGEX = r"\"version\": \"([A-Za-z0-9]+(\.[A-Za-z0-9]+)+)\""
-TARGET_PATH = fr"D:\Factorio modding\{MOD_NAME} versions"
+# Output directory for the release zip (<repo>/versions, gitignored).
+TARGET_PATH = os.path.join(PATH, "versions")
 
 IMAGE_REGEX = r"\"([^\"]*.png)\"([^\n]*)"
 SKIP_IMAGE_FLAG = r"#SKIP IMAGE#"
@@ -27,7 +26,10 @@ PATHS_TO_SKIP = [".git",
                  "python",
                  "screenshots",
                  ".editorconfig",
-                 ".gitignore"]
+                 ".gitignore",
+                 "versions",
+                 "Dockerfile",
+                 "docker-compose.yml"]
 
 
 def get_version_from_info_json() -> str:
@@ -36,8 +38,8 @@ def get_version_from_info_json() -> str:
 
     @return: version as string
     """
-    info_json_file = open(INFO_JSON_PATH, mode = 'r')
-    info_json_text = info_json_file.read()
+    with open(INFO_JSON_PATH, mode='r') as info_json_file:
+        info_json_text = info_json_file.read()
     version = re.search(INFO_JSON_VERSION_REGEX, info_json_text).group(1)
     return version
 
@@ -46,14 +48,22 @@ def create_zip():
     """
     Creates zip
     """
-    zip_path = fr"{TARGET_PATH}\{MOD_NAME}_{get_version_from_info_json()}.zip"
+    os.makedirs(TARGET_PATH, exist_ok=True)
+    zip_path = os.path.join(TARGET_PATH, f"{MOD_NAME}_{get_version_from_info_json()}.zip")
     with zipfile.ZipFile(zip_path, "w") as z:
         # Add all files except the ones listed in PATHS_TO_SKIP
         for root, dirs, files in os.walk(PATH):
+            # Don't descend into skipped top-level directories (e.g. .git)
+            if os.path.abspath(root) == PATH:
+                dirs[:] = [d for d in dirs if d not in PATHS_TO_SKIP]
             for file in files:
-                relative_path = os.path.join(root, file).replace(f"{PATH}\\", "")
-                if relative_path.split("\\")[0] not in PATHS_TO_SKIP:
-                    z.write(os.path.join(root, file), fr"{MOD_NAME}\{relative_path}")
+                full_path = os.path.join(root, file)
+                relative_path = os.path.relpath(full_path, PATH)
+                if relative_path.split(os.sep)[0] not in PATHS_TO_SKIP:
+                    # Zip entries always use forward slashes, even on Windows
+                    arcname = os.path.join(MOD_NAME, relative_path).replace(os.sep, "/")
+                    z.write(full_path, arcname)
+    print(f"Wrote {zip_path}")
 
 
 if __name__ == "__main__":

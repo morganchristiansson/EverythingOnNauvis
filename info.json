@@ -1,7 +1,7 @@
 {
     "name": "EverythingOnNauvis-morganc",
-    "version": "0.1.8",
-    "title": "Everything on Nauvis",
+    "version": "0.1.9",
+    "title": "Everything on Nauvis (morganc fork)",
     "description": "Moves all resources to Nauvis. Removes other planets.",
     "author": "Spaghetti",
     "contact": "https://github.com/Spaghenutti/EverythingOnNauvis/issues",
@@ -11,6 +11,7 @@
         "base >= 2.0.47",
         "space-age >= 2.0.47",
         "! naufulglebunusilo",
-        "! rso-mod"
+        "! rso-mod",
+        "! EverythingOnNauvis"
     ]
 }
