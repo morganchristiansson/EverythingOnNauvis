@@ -8,5 +8,5 @@ This mod adds all the main recources and terrains from other planets to Nauvis a
  - Vulcane are spread around the map
  - Aquilo stuff is towards the north 
  - Gleba fluff is towards the south
- - Holmium ore since scrap is somewhat OP
+ - Holmium ore since scrap is somewhat OP (can be disabled with the "Replace scrap with holmium ore" startup setting)
  - No surface conditions for any recipe

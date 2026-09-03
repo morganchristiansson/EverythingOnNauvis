@@ -1,6 +1,8 @@
 
 local data_util = require("data-util")
 
+local holmium_ore = settings.startup["eon-holmium-ore"].value
+
 
 -- Fix tech tree
 
@@ -68,7 +70,10 @@ data.raw.technology["heating-tower"].prerequisites = {"concrete"}
 
 -- Fulgora
 data.raw.technology["lightning-collector"].hidden = true
-data.raw.technology["holmium-processing"].research_trigger = {type = "mine-entity", entity = "holmium-ore"}
+if holmium_ore then
+  -- Scrap is gone, so holmium-processing must be triggered by mining holmium ore directly
+  data.raw.technology["holmium-processing"].research_trigger = {type = "mine-entity", entity = "holmium-ore"}
+end
 data.raw.technology["recycling"].prerequisites = {"processing-unit", "production-science-pack"}
 data.raw.technology["recycling"].research_trigger = nil
 data.raw.technology["recycling"].unit = {

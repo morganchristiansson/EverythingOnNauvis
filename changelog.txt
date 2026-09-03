@@ -2,6 +2,7 @@
 Version: 0.1.9
 Date: 2025-05-XX
   Changes:
+    - New startup setting "Replace scrap with holmium ore" (default on): when enabled, scrap is replaced with holmium ore on Nauvis.
     - New startup setting "Keep space platform surface restrictions": when enabled, planet-exclusive machines and recipes still work on Nauvis but can no longer be placed or crafted on space platforms. Space platform exclusive entries (crusher, thruster, space science packs) stay restricted either way.
     - Gleba placement is now tuned per map via Nauvis map-gen settings property expression names "eon_gleba_south_offset" (default 1000, how far south Gleba terrain starts) and "eon_gleba_deep_south_cap" (default 1, caps how strongly distant southern terrain turns into Gleba; lower it for more biter-friendly Nauvis gaps deep south). No restart needed, applies to newly generated chunks.
     - Far-south terrain no longer becomes pure Gleba: the south bias is capped, so deep south stays mostly Gleba with regular Nauvis gaps where biter nests can spawn again.

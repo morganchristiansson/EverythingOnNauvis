@@ -2,6 +2,7 @@
 -- Fixes map generation for resources
 --------------------------------------------------------------------------------
 local terrain = require("map-generation.terrain")
+local holmium_ore = settings.startup["eon-holmium-ore"].value
 
 local data_util =
 {
@@ -47,10 +48,18 @@ data.raw.planet["aquilo"].map_gen_settings.autoplace_controls = {nil}
 -- MARK: Add Fulgora resources to Nauvis
 --------------------------------------------------------------------------------
 
--- Add holmium as ore
-data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["holmium-ore"] = {}
-data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["holmium-ore"] = {}
-terrain.mask_resource_territory("holmium-ore", "resource")
+if holmium_ore then
+  -- Add holmium as ore
+  data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["holmium-ore"] = {}
+  data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["holmium-ore"] = {}
+  terrain.mask_resource_territory("holmium-ore", "resource")
+else
+  -- Keep scrap
+  data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["scrap"] = {}
+  data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["scrap"] = {}
+  data.raw.resource["scrap"].autoplace.has_starting_area_placement = false  -- no scrap in the Nauvis starting area
+  terrain.mask_resource_territory("scrap", "resource")
+end
 
 --------------------------------------------------------------------------------
 -- MARK: Gleba

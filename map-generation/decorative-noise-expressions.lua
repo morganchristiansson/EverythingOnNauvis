@@ -1,5 +1,7 @@
 local data_util = require("data-util")
 
+local holmium_ore = settings.startup["eon-holmium-ore"].value
+
 
 -- Returns new noise expression with name "name" to "eon_name"
 function duplicate_noise_expression(name, type)
@@ -318,7 +320,7 @@ data:extend({
   -- START: Everything on nauvis
   duplicate_noise_expression("calcite", "resource"),
   duplicate_noise_expression("tungsten-ore", "resource"),
-  duplicate_noise_expression("holmium-ore", "resource"),
+  duplicate_noise_expression(holmium_ore and "holmium-ore" or "scrap", "resource"),
   -- END: Everything on nauvis
 
   -- MARK: Noise expressions
