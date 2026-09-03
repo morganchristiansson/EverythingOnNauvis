@@ -10,7 +10,7 @@ import re
 import zipfile
 from typing import List
 
-MOD_NAME = "EverythingOnNauvis"
+MOD_NAME = "EverythingOnNauvis-morganc"
 PATH = os.getcwd()
 INFO_JSON_PATH = fr"{PATH}\info.json"
 INFO_JSON_VERSION_REGEX = r"\"version\": \"([A-Za-z0-9]+(\.[A-Za-z0-9]+)+)\""

@@ -184,7 +184,7 @@ if holmium_ore then
       {
         sheet =
         {
-          filename = "__EverythingOnNauvis__/graphics/holmium-ore-patches.png",
+          filename = "__EverythingOnNauvis-morganc__/graphics/holmium-ore-patches.png",
           priority = "extra-high",
           width = 128,
           height = 128,
