@@ -2,3 +2,5 @@
 # tests/
 # fonts/
 graphics/dummy/
+versions/
+python/__pycache__/
