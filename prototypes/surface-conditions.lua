@@ -1,5 +1,5 @@
 
-local keep_space_restrictions = settings.startup["eon-keep-space-platform-restrictions"].value
+local remove_space_restrictions = settings.startup["eon-remove-space-platform-restrictions"].value
 
 -- Surface properties relevant here (Factorio 2.0.77):
 --   space-platform reports 0 for pressure/gravity/magnetic-field,
@@ -11,8 +11,8 @@ local keep_space_restrictions = settings.startup["eon-keep-space-platform-restri
 local SAFE_PLANETARY_REQUIREMENT = 1
 
 -- Handle the surface conditions of every prototype that has them (buildings, recipes, ...):
---   setting off: remove them entirely, so anything from any planet works on Nauvis.
---   setting on : keep restrictions against space platforms (see SAFE_PLANETARY_REQUIREMENT).
+--   setting on : remove them entirely, so anything from any planet works on Nauvis and space platforms.
+--   setting off: keep restrictions against space platforms (see SAFE_PLANETARY_REQUIREMENT).
 -- Exception: explosions. Their surface conditions select which "nuke-effects-*" variant applies
 -- per planet (nuclear-ground on Nauvis, ammoniacal-ocean on Aquilo, lava on Vulcanus). Removing
 -- them would make all variants trigger on Nauvis, letting the atomic bomb create impassable
@@ -22,7 +22,7 @@ for _, type in pairs(data.raw) do
         for _, name in pairs(type) do
             local conditions = name.surface_conditions
             if conditions then
-                if not keep_space_restrictions then
+                if remove_space_restrictions then
                     name.surface_conditions = nil
                 else
                     -- Leave platform-exclusive conditions alone (their minimums are all 0,
