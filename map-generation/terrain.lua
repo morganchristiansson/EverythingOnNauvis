@@ -14,7 +14,7 @@ function terrain.mask_off_nauvis_territory(decorative, decorative_type)
 end
 
 function terrain.mask_resource_territory(decorative, decorative_type)
-  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_resource_territory(" .. data_util.generate_eon_name(decorative) .. ")"
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_off_vulcano_terrain(eon_mask_resource_territory(" .. data_util.generate_eon_name(decorative) .. "))"
 end
 
 function terrain.mask_aquilo_territory(decorative, decorative_type)
@@ -57,6 +57,10 @@ function terrain.mask_off_vulcano_terrain(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_off_vulcano_terrain(" .. data_util.generate_eon_name(decorative) .. ")"
 end
 
+function terrain.mask_resource_territory_allow_volcano(decorative, decorative_type)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_resource_territory(" .. data_util.generate_eon_name(decorative) .. ")"
+end
+
 data:extend({
   -- Noise expressions
   {
@@ -79,6 +83,11 @@ data.raw.tile["deepwater"].autoplace.probability_expression = "eon_updated_deepw
 -- Remove nauvis trees from eon_vulcanus_terrain
 -- data.raw["noise-expression"]["trees_forest_path_cutout"].expression = "mask_off_vulcano_terrain(min(nauvis_bridge_paths, nauvis_hills_paths, forest_paths))"
 data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "eon_mask_nauvis_territory(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1)"
+
+-- Dead trees only grow on nauvis territory (same fix as EverythingOnNauvis-Patches).
+-- Masked at expression level like trees_forest_path_cutout_faded: tree_dead_grey_trunk
+-- is only used by dead-grey-trunk, which does not reference the faded expression.
+data.raw["noise-expression"]["tree_dead_grey_trunk"].expression = "eon_mask_nauvis_territory(" .. data.raw["noise-expression"]["tree_dead_grey_trunk"].expression .. ")"
 
 -- Remove nauvis decoratives from eon_vulcano_coverage
 terrain.mask_nauvis_territory("cracked-mud-decal", "optimized-decorative")
@@ -1079,39 +1088,74 @@ data:extend({
   },
   {
     type = "noise-expression",
-    name = "eon_mountain_volcano_spots",
-    -- Removes starter spot from vulcanus
-    expression = "raw_spots - starting_protector",
+    name = "eon_volcano_starting_protector",
+    expression = "clamp(starting_spot_at_angle{ angle = vulcanus_mountains_angle + 180 * vulcanus_starting_direction,\z
+                                                distance = (400 * vulcanus_starting_area_radius) / 2,\z
+                                                radius = 800 * vulcanus_starting_area_radius,\z
+                                                x_distortion = vulcanus_wobble_x/2 + vulcanus_wobble_large_x/12 + vulcanus_wobble_huge_x/80,\z
+                                                y_distortion = vulcanus_wobble_y/2 + vulcanus_wobble_large_y/12 + vulcanus_wobble_huge_y/80}, 0, 1)"
+  },
+  {
+    -- Detail noise with an explicit position offset (base vulcanus_detail_noise has none).
+    type = "noise-function",
+    name = "eon_detail_noise_at",
+    parameters = {"seed1", "scale", "octaves", "magnitude", "x_offset", "y_offset"},
+    expression = "multioctave_noise{x = x + x_offset, y = y + y_offset, seed0 = map_seed, seed1 = seed1 + 12243, octaves = octaves, persistence = 0.6, input_scale = 1 / 50 / scale, output_scale = magnitude}"
+  },
+  {
+    -- Volcano spots evaluated at an offset position, so tiles and territory share one
+    -- definition: (0, 0) for tiles, (16, 16) to compensate chunk-aligned territory sampling.
+    type = "noise-function",
+    name = "eon_volcano_spots_at",
+    parameters = {"x_offset", "y_offset"},
+    expression = "spot_noise{x = x + x_offset + eon_detail_noise_at{seed1 = 10, scale = 1/8, octaves = 2, magnitude = 4, x_offset = x_offset, y_offset = y_offset}/2 + eon_detail_noise_at{seed1 = 20, scale = 1/2, octaves = 2, magnitude = 50, x_offset = x_offset, y_offset = y_offset}/12 + eon_detail_noise_at{seed1 = 30, scale = 2, octaves = 2, magnitude = 800, x_offset = x_offset, y_offset = y_offset}/80,\z
+                             y = y + y_offset + eon_detail_noise_at{seed1 = 1010, scale = 1/8, octaves = 2, magnitude = 4, x_offset = x_offset, y_offset = y_offset}/2 + eon_detail_noise_at{seed1 = 1020, scale = 1/2, octaves = 2, magnitude = 50, x_offset = x_offset, y_offset = y_offset}/12 + eon_detail_noise_at{seed1 = 1030, scale = 2, octaves = 2, magnitude = 800, x_offset = x_offset, y_offset = y_offset}/80,\z
+                             seed0 = map_seed,\z
+                             seed1 = 1,\z
+                             candidate_spot_count = 1,\z
+                             suggested_minimum_candidate_point_spacing = volcano_spot_spacing,\z
+                             skip_span = 1,\z
+                             skip_offset = 0,\z
+                             region_size = 256*density_multiplier,\z
+                             density_expression = volcano_area / volcanism_sq,\z
+                             spot_quantity_expression = volcano_spot_radius * volcano_spot_radius,\z
+                             spot_radius_expression = volcano_spot_radius,\z
+                             hard_region_target_quantity = 0,\z
+                             spot_favorability_expression = volcano_area,\z
+                             basement_value = 0,\z
+                             maximum_spot_basement_radius = volcano_spot_radius}",
     local_expressions =
     {
-      starting_protector = "clamp(starting_spot_at_angle{ angle = vulcanus_mountains_angle + 180 * vulcanus_starting_direction,\z
-                                                          distance = (400 * vulcanus_starting_area_radius) / 2,\z
-                                                          radius = 800 * vulcanus_starting_area_radius,\z
-                                                          x_distortion = vulcanus_wobble_x/2 + vulcanus_wobble_large_x/12 + vulcanus_wobble_huge_x/80,\z
-                                                          y_distortion = vulcanus_wobble_y/2 + vulcanus_wobble_large_y/12 + vulcanus_wobble_huge_y/80}, 0, 1)",
-      raw_spots = "spot_noise{x = x + vulcanus_wobble_x/2 + vulcanus_wobble_large_x/12 + vulcanus_wobble_huge_x/80,\z
-                              y = y + vulcanus_wobble_y/2 + vulcanus_wobble_large_y/12 + vulcanus_wobble_huge_y/80,\z
-                              seed0 = map_seed,\z
-                              seed1 = 1,\z
-                              candidate_spot_count = 1,\z
-                              suggested_minimum_candidate_point_spacing = volcano_spot_spacing,\z
-                              skip_span = 1,\z
-                              skip_offset = 0,\z
-                              region_size = 256*density_multiplier,\z
-                              density_expression = volcano_area / volcanism_sq,\z
-                              spot_quantity_expression = volcano_spot_radius * volcano_spot_radius,\z
-                              spot_radius_expression = volcano_spot_radius,\z
-                              hard_region_target_quantity = 0,\z
-                              spot_favorability_expression = volcano_area,\z
-                              basement_value = 0,\z
-                              maximum_spot_basement_radius = volcano_spot_radius}",
       volcano_area = "lerp(vulcanus_mountains_biome_full_pre_volcano, 0, vulcanus_starting_area)",
-      volcano_spot_radius = "300 * volcanism * sqrt(1 + control:vulcanus_volcanism:size)",
-      volcano_spot_spacing = "1500 * volcanism",
       volcanism = "0.3 + 0.7 * slider_rescale(control:vulcanus_volcanism:size, 3) / slider_rescale(vulcanus_scale_multiplier, 3)",
       volcanism_sq = "volcanism * volcanism",
+      volcano_spot_radius = "300 * volcanism * sqrt(1 + control:vulcanus_volcanism:size)",
+      volcano_spot_spacing = "1500 * volcanism",
       density_multiplier = "5 / sqrt(control:vulcanus_volcanism:frequency)"
     }
+  },
+  {
+    type = "noise-expression",
+    name = "eon_mountain_volcano_spots",
+    -- Removes starter spot from vulcanus
+    expression = "eon_volcano_spots_at{x_offset = 0, y_offset = 0} - eon_volcano_starting_protector"
+  },
+  {
+    -- Territory sampling is chunk-aligned (biased down/right half a chunk); the 16px
+    -- offset above moves the mask up-left to compensate (see eon_volcano_spots_at).
+    type = "noise-expression",
+    name = "eon_terr_volcano_spots",
+    expression = "if(eon_volcano_starting_protector > 0.03, 0, eon_volcano_spots_at{x_offset = 16, y_offset = 16})"
+  },
+  {
+    -- Eroded volcano mask for demolisher territory: territory is sampled per 32x32 chunk
+    -- and includes any chunk whose corner touches the mask, so the mask is eroded by about
+    -- one chunk to keep territory visually inside the volcano while still covering all lava.
+    -- Nauvis water/deepwater and ammonia ocean are excluded so territory never spills onto
+    -- water at coastal volcanoes. Evaluated on the shifted field above.
+    type = "noise-expression",
+    name = "eon_demolisher_territory",
+    expression = "(eon_terr_volcano_spots > 0.55) * (eon_updated_water <= 0) * (eon_updated_deepwater <= 0) * (eon_aquilo_ammonia <= -1)"
   },
   {
     -- Seed: 3329457809 south east

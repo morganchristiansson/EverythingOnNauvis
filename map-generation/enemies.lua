@@ -56,8 +56,14 @@ data.raw["turret"]["behemoth-worm-turret"].autoplace.probability_expression = "e
 
 data.raw.planet["nauvis"].map_gen_settings.territory_settings = data.raw.planet["vulcanus"].map_gen_settings.territory_settings
 
--- Add demolishers - TODO: Add setting for enabling demolishers
-data.raw["noise-expression"]["demolisher_starting_area"].expression = "if(eon_vulcano_coverage > 0.2, 0, 1)"
+-- Demolisher territory follows an eroded volcano mask (see eon_demolisher_territory):
+-- territory is sampled per 32x32 chunk at chunk corners, so an uneroded mask pokes
+-- outside the volcano to the bottom/right. The shifted eroded mask keeps territory
+-- centered and inside while still covering all lava. Territories exist only on volcano
+-- terrain, so demolishers stay at volcanoes.
+data.raw["noise-expression"]["demolisher_starting_area"].expression = "if(eon_demolisher_territory, 0, -inf)"
+local demolisher_territory = data.raw["noise-expression"]["demolisher_territory_expression"].expression
+data.raw["noise-expression"]["demolisher_territory_expression"].expression = "if(eon_demolisher_territory, " .. demolisher_territory .. ", -inf)"
 
 --------------------------------------------------------------------------------
 -- MARK: Add Gleba enemies aka strafer, stompers and wriggler pentapods

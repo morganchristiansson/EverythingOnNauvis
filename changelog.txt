@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.1.10
+Date: 2026-09-XX
+  Bugfixes:
+    - Demolisher territory now sits centered and inside volcanoes: it uses a half-chunk-shifted eroded volcano mask (spots > 0.55, water excluded) to compensate chunk-aligned territory sampling, which cut off the top/left and poked outside to the bottom/right. Territories exist only on volcano terrain, so demolishers stay at volcanoes.
+    - Nauvis ores (iron, copper, stone, coal, uranium, crude oil, holmium/scrap) no longer spawn inside volcano areas.
+    - Dead grey trunks no longer spawn outside Nauvis territory (no more dead trees on volcanoes).
+---------------------------------------------------------------------------------------------------
 Version: 0.1.9
 Date: 2025-05-XX
   Changes:

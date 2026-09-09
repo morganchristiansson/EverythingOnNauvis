@@ -30,6 +30,7 @@ end
 --------------------------------------------------------------------------------
 
 -- Remove resources spawning on ammonia ocean
+-- Nauvis resources stay off volcano terrain entirely.
 terrain.mask_resource_territory("iron-ore", "resource")
 terrain.mask_resource_territory("copper-ore", "resource")
 terrain.mask_resource_territory("stone", "resource")
@@ -96,8 +97,8 @@ data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["t
 data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["sulfuric_acid_geyser"] = {}
 
 -- Mask resources from ammonia ocean
-terrain.mask_resource_territory("calcite", "resource")
-terrain.mask_resource_territory("tungsten-ore", "resource")
+terrain.mask_resource_territory_allow_volcano("calcite", "resource")
+terrain.mask_resource_territory_allow_volcano("tungsten-ore", "resource")
 
 -- START: Fix Resource spawning
 data.raw.resource["calcite"].autoplace.has_starting_area_placement = false -- Does nothing but noise expression vulcanus_starting_calcite removes starter spot
