@@ -991,6 +991,8 @@ data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["v
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["vulcanus-chimney-truncated"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["huge-volcanic-rock"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["big-volcanic-rock"] = {}
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["ashland-lichen-tree"] = {}
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["ashland-lichen-tree-flaming"] = {}
 -- END: Update map gen settings
 
 -- Fix probability expressions for tiles and cliffs
@@ -1058,9 +1060,28 @@ terrain.mask_vulcano_terrain("sulfur-rock-cluster", "optimized-decorative")
 terrain.mask_vulcano_terrain("vulcanus-lava-fire", "optimized-decorative")
 -- END: Mask vulcanus territory on all autoplace settings
 
+-- Ashland trees on volcano terrain (ported from EverythingOnNauvis-Patches)
+data.raw["tree"]["ashland-lichen-tree"].autoplace.probability_expression = "eon_mask_vulcano_terrain(0.05 * eon_vulcano_ashland_tree_density)"
+data.raw["tree"]["ashland-lichen-tree-flaming"].autoplace.probability_expression = "eon_mask_vulcano_terrain(0.02 * eon_vulcano_ashland_tree_density)"
+
+-- Fewer chimneys and rocks on volcano terrain (ported from EverythingOnNauvis-Patches)
+data.raw["simple-entity"]["vulcanus-chimney"].autoplace.probability_expression = "0.2 * (" .. data.raw["simple-entity"]["vulcanus-chimney"].autoplace.probability_expression .. ")"
+data.raw["simple-entity"]["vulcanus-chimney-faded"].autoplace.probability_expression = "0.2 * (" .. data.raw["simple-entity"]["vulcanus-chimney-faded"].autoplace.probability_expression .. ")"
+data.raw["simple-entity"]["vulcanus-chimney-cold"].autoplace.probability_expression = "0.2 * (" .. data.raw["simple-entity"]["vulcanus-chimney-cold"].autoplace.probability_expression .. ")"
+data.raw["simple-entity"]["vulcanus-chimney-short"].autoplace.probability_expression = "0.2 * (" .. data.raw["simple-entity"]["vulcanus-chimney-short"].autoplace.probability_expression .. ")"
+data.raw["simple-entity"]["vulcanus-chimney-truncated"].autoplace.probability_expression = "0.2 * (" .. data.raw["simple-entity"]["vulcanus-chimney-truncated"].autoplace.probability_expression .. ")"
+data.raw["simple-entity"]["huge-volcanic-rock"].autoplace.probability_expression = "0.4 * (" .. data.raw["simple-entity"]["huge-volcanic-rock"].autoplace.probability_expression .. ")"
+data.raw["simple-entity"]["big-volcanic-rock"].autoplace.probability_expression = "0.4 * (" .. data.raw["simple-entity"]["big-volcanic-rock"].autoplace.probability_expression .. ")"
+
 -- New noise expressions and noise functions
 data:extend({
   -- Noise expressions
+  {
+    -- Ashland tree density on volcano terrain: baseline chance plus patchiness.
+    type = "noise-expression",
+    name = "eon_vulcano_ashland_tree_density",
+    expression = "clamp(0.02 + 0.8 * tree_small_noise, 0, 1)"
+  },
   {
     -- Influences volcanic-folds-flat tile - distance and radius are increased to match mountain_volcano_spots, also removes remains of starter spot
     type = "noise-expression",
