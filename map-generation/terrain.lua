@@ -1014,6 +1014,11 @@ data.raw.tile["lava-hot"].autoplace.probability_expression = "eon_lava_hot_mount
 
 data.raw.cliff["crater-cliff"].autoplace.probability_expression = "eon_lava_hot_mountains_range"
 
+-- Cliff contours ring volcanoes like space-age (see eon_cliff_elevation): the engine places
+-- cliff segments along elevation contours with native orientations and connections.
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["cliff_elevation"] = "eon_cliff_elevation"
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["cliffiness"] = "eon_cliffiness"
+
 
 -- START: Mask vulcanus territory on all autoplace settings
 -- Mask decoratives close to vulcano
@@ -1211,7 +1216,26 @@ data:extend({
     name = "eon_vulcanus_terrain",
     expression = "max(eon_vulcano_coverage, eon_updated_volcanic_folds_flat) > 0"
   },
-
+  {
+    -- Steeper slope crowding terrace rings near the lava for cliff contours
+    -- (see eon_cliff_elevation). Closed rims are intended: kite the demolisher
+    -- to blast access.
+    type = "noise-expression",
+    name = "eon_volcano_cliff_spike",
+    expression = "300 * clamp((eon_mountain_volcano_spots - 0.60) / 0.25, 0, 1)"
+  },
+  {
+    -- Cliff elevation with volcano spikes: base nauvis behavior everywhere else.
+    type = "noise-expression",
+    name = "eon_cliff_elevation",
+    expression = "cliff_elevation_nauvis + eon_volcano_cliff_spike"
+  },
+  {
+    -- Cliffiness with volcanoes enabled: base nauvis behavior everywhere else.
+    type = "noise-expression",
+    name = "eon_cliffiness",
+    expression = "if(eon_vulcanus_terrain, 1.5, cliffiness_nauvis)"
+  },
   -- Noise functions
   {
     -- Mask close surroundings of vulcano
