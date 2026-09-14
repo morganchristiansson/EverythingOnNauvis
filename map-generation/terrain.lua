@@ -9,6 +9,13 @@ function terrain.mask_nauvis_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_nauvis_territory(" .. data_util.generate_eon_name(decorative) .. ")"
 end
 
+-- Nauvis tile allowed southward into the mixing band: alive while the
+-- transition value stays below threshold (higher = dies further south).
+-- Keeps the aquilo/volcano exclusions of the plain territory mask.
+function terrain.mask_nauvis_deep(decorative, decorative_type, threshold)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_nauvis_deep(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
+end
+
 function terrain.mask_off_nauvis_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_off_nauvis_territory(" .. data_util.generate_eon_name(decorative) .. ")"
 end
@@ -35,6 +42,18 @@ end
 
 function terrain.mask_gleba_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_gleba_territory(" .. data_util.generate_eon_name(decorative) .. ")"
+end
+
+-- Gleba tile allowed northward into the mixing band: alive once the transition
+-- value passes threshold (lower/negative = starts further north).
+function terrain.mask_gleba_early(decorative, decorative_type, threshold)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_gleba_early(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
+end
+
+-- Gleba water may start at the Nauvis water cut line (region -10) so southern
+-- oceans continue water-to-water instead of going dry at the border.
+function terrain.mask_gleba_water(decorative, decorative_type)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_gleba_water(" .. data_util.generate_eon_name(decorative) .. ")"
 end
 
 function terrain.mask_off_gleba_territory(decorative, decorative_type)
@@ -76,18 +95,18 @@ data:extend({
 --------------------------------------------------------------------------------
 
 -- Remove water where at vulcano spots
-data.raw.tile["water"].autoplace.probability_expression = "eon_updated_water + if(eon_gleba_region(-10), -inf, 0)"
-data.raw.tile["deepwater"].autoplace.probability_expression = "eon_updated_deepwater + if(eon_gleba_region(-100), -inf, 0)"
+data.raw.tile["water"].autoplace.probability_expression = "eon_updated_water + if(eon_gleba_region_deep(-10), -inf, 0)"
+data.raw.tile["deepwater"].autoplace.probability_expression = "eon_updated_deepwater + if(eon_gleba_region_deep(-10), -inf, 0)"
 
 -- START: Mask nauvis territory on all autoplace settings
 -- Remove nauvis trees from eon_vulcanus_terrain
 -- data.raw["noise-expression"]["trees_forest_path_cutout"].expression = "mask_off_vulcano_terrain(min(nauvis_bridge_paths, nauvis_hills_paths, forest_paths))"
-data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "eon_mask_nauvis_territory(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1)"
+data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "eon_mask_nauvis_deep(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 60)"
 
 -- Dead trees only grow on nauvis territory (same fix as EverythingOnNauvis-Patches).
 -- Masked at expression level like trees_forest_path_cutout_faded: tree_dead_grey_trunk
 -- is only used by dead-grey-trunk, which does not reference the faded expression.
-data.raw["noise-expression"]["tree_dead_grey_trunk"].expression = "eon_mask_nauvis_territory(" .. data.raw["noise-expression"]["tree_dead_grey_trunk"].expression .. ")"
+data.raw["noise-expression"]["tree_dead_grey_trunk"].expression = "eon_mask_nauvis_deep(" .. data.raw["noise-expression"]["tree_dead_grey_trunk"].expression .. ", 60)"
 
 -- Remove nauvis decoratives from eon_vulcano_coverage
 terrain.mask_nauvis_territory("cracked-mud-decal", "optimized-decorative")
@@ -131,26 +150,27 @@ terrain.mask_nauvis_territory("sand-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("sand-dune-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("white-desert-bush", "optimized-decorative")
 
--- Remove nauvis tiles from gleba territory
-terrain.mask_nauvis_territory("grass-1", "tile")
-terrain.mask_nauvis_territory("grass-2", "tile")
-terrain.mask_nauvis_territory("grass-3", "tile")
-terrain.mask_nauvis_territory("grass-4", "tile")
-terrain.mask_nauvis_territory("dry-dirt", "tile")
-terrain.mask_nauvis_territory("dirt-1", "tile")
-terrain.mask_nauvis_territory("dirt-2", "tile")
-terrain.mask_nauvis_territory("dirt-3", "tile")
-terrain.mask_nauvis_territory("dirt-4", "tile")
-terrain.mask_nauvis_territory("dirt-5", "tile")
-terrain.mask_nauvis_territory("dirt-6", "tile")
-terrain.mask_nauvis_territory("dirt-7", "tile")
-terrain.mask_nauvis_territory("sand-1", "tile")
-terrain.mask_nauvis_territory("sand-2", "tile")
-terrain.mask_nauvis_territory("sand-3", "tile")
-terrain.mask_nauvis_territory("red-desert-0", "tile")
-terrain.mask_nauvis_territory("red-desert-1", "tile")
-terrain.mask_nauvis_territory("red-desert-2", "tile")
-terrain.mask_nauvis_territory("red-desert-3", "tile")
+-- Remove nauvis tiles across the mixing band: dry sand dies first (north),
+-- dirt in the middle, wet grass reaches deepest south (wet-meets-wet).
+terrain.mask_nauvis_deep("grass-1", "tile", 90)
+terrain.mask_nauvis_deep("grass-2", "tile", 90)
+terrain.mask_nauvis_deep("grass-3", "tile", 90)
+terrain.mask_nauvis_deep("grass-4", "tile", 90)
+terrain.mask_nauvis_deep("dry-dirt", "tile", 60)
+terrain.mask_nauvis_deep("dirt-1", "tile", 60)
+terrain.mask_nauvis_deep("dirt-2", "tile", 60)
+terrain.mask_nauvis_deep("dirt-3", "tile", 60)
+terrain.mask_nauvis_deep("dirt-4", "tile", 60)
+terrain.mask_nauvis_deep("dirt-5", "tile", 60)
+terrain.mask_nauvis_deep("dirt-6", "tile", 60)
+terrain.mask_nauvis_deep("dirt-7", "tile", 60)
+terrain.mask_nauvis_deep("sand-1", "tile", 35)
+terrain.mask_nauvis_deep("sand-2", "tile", 35)
+terrain.mask_nauvis_deep("sand-3", "tile", 35)
+terrain.mask_nauvis_deep("red-desert-0", "tile", 35)
+terrain.mask_nauvis_deep("red-desert-1", "tile", 35)
+terrain.mask_nauvis_deep("red-desert-2", "tile", 35)
+terrain.mask_nauvis_deep("red-desert-3", "tile", 35)
 -- terrain.mask_nauvis_territory("water", "tile")
 -- terrain.mask_nauvis_territory("deepwater", "tile")
 -- END: Mask nauvis territory on all autoplace settings
@@ -490,22 +510,25 @@ data:extend({
 
 -- START: Update map gen settings
 -- autoplace_controls
-data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["gleba_plants"] = {}
-data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["gleba_water"] = {}
+-- Explicit 1/1/1: an empty table leaves frequency/size to resolve as 0 on
+-- Nauvis, which flattens every gleba_water-frequency-driven field to a
+-- constant (tri_ridge, peaks terraces) and erases all basins/oceans.
+data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["gleba_plants"] = { frequency = 1, size = 1, richness = 1 }
+data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["gleba_water"] = { frequency = 1, size = 1, richness = 1 }
 
 -- tile settings
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["natural-yumako-soil"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["natural-jellynut-soil"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-yumako"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-jellynut"] = {}
--- data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-blue-slime"] = {}  -- gleba water
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-blue-slime"] = {}  -- gleba water (unlisted tiles never place)
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-light-green-slime"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-green-slime"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-light-dead-skin"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-dead-skin"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-pink-tentacle"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["wetland-red-tentacle"] = {}
--- data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["gleba-deep-lake"] = {}  -- gleba water
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["gleba-deep-lake"] = {}  -- gleba water (unlisted tiles never place)
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["lowland-brown-blubber"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["lowland-olive-blubber"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.tile.settings["lowland-olive-blubber-2"] = {}
@@ -629,14 +652,14 @@ terrain.mask_gleba_territory("natural-yumako-soil", "tile")
 terrain.mask_gleba_territory("natural-jellynut-soil", "tile")
 terrain.mask_gleba_territory("wetland-yumako", "tile")
 terrain.mask_gleba_territory("wetland-jellynut", "tile")
-terrain.mask_gleba_territory("wetland-blue-slime", "tile")
+terrain.mask_gleba_water("wetland-blue-slime", "tile")
+terrain.mask_gleba_water("gleba-deep-lake", "tile")
 terrain.mask_gleba_territory("wetland-light-green-slime", "tile")
 terrain.mask_gleba_territory("wetland-green-slime", "tile")
 terrain.mask_gleba_territory("wetland-light-dead-skin", "tile")
 terrain.mask_gleba_territory("wetland-dead-skin", "tile")
 terrain.mask_gleba_territory("wetland-pink-tentacle", "tile")
 terrain.mask_gleba_territory("wetland-red-tentacle", "tile")
-terrain.mask_gleba_territory("gleba-deep-lake", "tile")
 terrain.mask_gleba_territory("lowland-brown-blubber", "tile")
 terrain.mask_gleba_territory("lowland-olive-blubber", "tile")
 terrain.mask_gleba_territory("lowland-olive-blubber-2", "tile")
@@ -653,19 +676,21 @@ terrain.mask_gleba_territory("lowland-red-vein-3", "tile")
 terrain.mask_gleba_territory("lowland-red-vein-4", "tile")
 terrain.mask_gleba_territory("lowland-red-vein-dead", "tile")
 terrain.mask_gleba_territory("lowland-red-infection", "tile")
-terrain.mask_gleba_territory("midland-turquoise-bark", "tile")
-terrain.mask_gleba_territory("midland-turquoise-bark-2", "tile")
-terrain.mask_gleba_territory("midland-cracked-lichen", "tile")
-terrain.mask_gleba_territory("midland-cracked-lichen-dull", "tile")
-terrain.mask_gleba_territory("midland-cracked-lichen-dark", "tile")
-terrain.mask_gleba_territory("midland-yellow-crust", "tile")
-terrain.mask_gleba_territory("midland-yellow-crust-2", "tile")
-terrain.mask_gleba_territory("midland-yellow-crust-3", "tile")
-terrain.mask_gleba_territory("midland-yellow-crust-4", "tile")
-terrain.mask_gleba_territory("highland-dark-rock", "tile")
-terrain.mask_gleba_territory("highland-dark-rock-2", "tile")
-terrain.mask_gleba_territory("highland-yellow-rock", "tile")
-terrain.mask_gleba_territory("pit-rock", "tile")
+-- Dry high ground fingers furthest north into Nauvis; wet lowland and
+-- wetlands start at the line; water leads it (see water mask, -10).
+terrain.mask_gleba_early("midland-turquoise-bark", "tile", -35)
+terrain.mask_gleba_early("midland-turquoise-bark-2", "tile", -35)
+terrain.mask_gleba_early("midland-cracked-lichen", "tile", -35)
+terrain.mask_gleba_early("midland-cracked-lichen-dull", "tile", -35)
+terrain.mask_gleba_early("midland-cracked-lichen-dark", "tile", -35)
+terrain.mask_gleba_early("midland-yellow-crust", "tile", -35)
+terrain.mask_gleba_early("midland-yellow-crust-2", "tile", -35)
+terrain.mask_gleba_early("midland-yellow-crust-3", "tile", -35)
+terrain.mask_gleba_early("midland-yellow-crust-4", "tile", -35)
+terrain.mask_gleba_early("highland-dark-rock", "tile", -70)
+terrain.mask_gleba_early("highland-dark-rock-2", "tile", -70)
+terrain.mask_gleba_early("highland-yellow-rock", "tile", -70)
+terrain.mask_gleba_early("pit-rock", "tile", -35)
 
 -- mask gleba decoratives
 terrain.mask_gleba_territory("yellow-lettuce-lichen-1x1", "optimized-decorative")
@@ -747,17 +772,17 @@ terrain.mask_gleba_territory("shroom-decal", "optimized-decorative")
 terrain.mask_gleba_territory("iron-stromatolite", "simple-entity")
 terrain.mask_gleba_territory("copper-stromatolite", "simple-entity")
 
--- Gleba trees
-terrain.mask_gleba_territory("cuttlepop", "tree")
-terrain.mask_gleba_territory("slipstack", "tree")
-terrain.mask_gleba_territory("funneltrunk", "tree")
-terrain.mask_gleba_territory("hairyclubnub", "tree")
-terrain.mask_gleba_territory("teflilly", "tree")
-terrain.mask_gleba_territory("lickmaw", "tree")
-terrain.mask_gleba_territory("stingfrond", "tree")
-terrain.mask_gleba_territory("boompuff", "tree")
-terrain.mask_gleba_territory("sunnycomb", "tree")
-terrain.mask_gleba_territory("water-cane", "tree")
+-- Gleba trees reach north with the midland shelf.
+terrain.mask_gleba_early("cuttlepop", "tree", -35)
+terrain.mask_gleba_early("slipstack", "tree", -35)
+terrain.mask_gleba_early("funneltrunk", "tree", -35)
+terrain.mask_gleba_early("hairyclubnub", "tree", -35)
+terrain.mask_gleba_early("teflilly", "tree", -35)
+terrain.mask_gleba_early("lickmaw", "tree", -35)
+terrain.mask_gleba_early("stingfrond", "tree", -35)
+terrain.mask_gleba_early("boompuff", "tree", -35)
+terrain.mask_gleba_early("sunnycomb", "tree", -35)
+terrain.mask_gleba_water("water-cane", "tree")  -- water plant follows the water handoff, not the tree line
 
 if not mods["Spaghetorio"] then
   terrain.mask_gleba_territory("honeycomb-fungus", "optimized-decorative")
@@ -773,7 +798,6 @@ data.raw["autoplace-control"]["gleba_water"].can_be_disabled = true
 -- Scalar tuning knobs, overridable per map via property_expression_names
 -- (e.g. map exchange string or console) without a mod restart.
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["eon_gleba_south_offset"] = "eon_gleba_south_offset"
-data.raw.planet["nauvis"].map_gen_settings.property_expression_names["eon_gleba_deep_south_cap"] = "eon_gleba_deep_south_cap"
 
 -- START: Update noise expressions
 -- Mask gleba plants to gleba terrain
@@ -813,6 +837,22 @@ data.raw.tile["wetland-yumako"].autoplace.probability_expression = "eon_yumako_s
 data.raw.tile["natural-jellynut-soil"].autoplace.probability_expression = "eon_jellynut_soil"
 data.raw.tile["natural-yumako-soil"].autoplace.probability_expression = "eon_yumako_soil"
 
+-- Correlate Gleba fields with Nauvis fields by shared meaning (see blend below).
+-- `elevation` on Nauvis is NOT `gleba_elevation`: the property resolves per
+-- planet, both expressions coexist globally. Deep south keeps pure vanilla
+-- Gleba fields; across the band both tile systems read blended fields.
+local function eon_copy_vanilla_field(name, copy_name)
+  local src = data.raw["noise-expression"][name]
+  local copy = {
+    type = "noise-expression",
+    name = copy_name,
+    expression = src.expression
+  }
+  if src.local_expressions then copy.local_expressions = table.deepcopy(src.local_expressions) end
+  if src.local_functions then copy.local_functions = table.deepcopy(src.local_functions) end
+  return copy
+end
+
 data:extend({
   -- Noise functions
   {
@@ -822,15 +862,6 @@ data:extend({
     type = "noise-expression",
     name = "eon_gleba_south_offset",
     expression = "1000"
-  },
-  {
-    -- Caps how strongly the south pushes toward Gleba once past the transition zone.
-    -- Deep-south Gleba condition becomes "noise_sum > -cap": higher values = more Gleba,
-    -- lower/negative values = more Nauvis gaps (and thus more biter territory) deep south.
-    -- Overridable per map via Nauvis map-gen settings property_expression_names.
-    type = "noise-expression",
-    name = "eon_gleba_deep_south_cap",
-    expression = "1"
   },
   {
     type = "noise-expression",
@@ -858,52 +889,113 @@ data:extend({
     expression = "eon_gleba_agriculture_spots(2, 32) * 6"
   },
 
-  -- Noise functions
+  -- Continuous transition value for the line (region) and backstop masks.
+  -- The shape reads ONLY static Nauvis fields plus slow wobbles; it must not
+  -- read the blended properties below, or the blend would feed into itself.
+  {
+    type = "noise-expression",
+    name = "eon_gleba_wobble_large",
+    -- Small on purpose: the line should follow real terrain (moisture/aux
+    -- contours), free sine curves read as artificial wobbles.
+    expression = "basis_noise{x = x,\z
+                                   y = y,\z
+                                   seed0 = map_seed,\z
+                                   seed1 = 5,\z
+                                   input_scale = var('control:gleba_plants:frequency') / 400,\z
+                                   output_scale = 6}"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_gleba_wobble_medium",
+    expression = "basis_noise{x = x,\z
+                                      y = y,\z
+                                      seed0 = map_seed,\z
+                                      seed1 = 6,\z
+                                      input_scale = var('control:gleba_plants:frequency') / 150,\z
+                                      output_scale = 3}"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_gleba_transition",
+    expression = "gleba_shape + south_offset",
+    local_expressions = {
+      gleba_shape = "eon_gleba_wobble_large + eon_gleba_wobble_medium + 30 * (moisture_nauvis - 0.5) + 15 * (aux_nauvis - 0.5)",
+      y_offset = "y - eon_gleba_south_offset",  -- gleba starts around eon_gleba_south_offset tiles to the south
+      -- Uncapped: grows ~0.1/tile forever south, so deep south is pure Gleba.
+      -- (No Nauvis/biter gaps; deep-south enemies are a separate task and will
+      -- come from Gleba-native spawners, which need no Nauvis ground.)
+      south_offset = "y_offset / (1 + pow(2, 0.01 * y_offset)) + 0.1 * y_offset - 30"
+    }
+  },
+  {
+    -- Blend driver. Same curves as the line with the same uncapped ramp, so it
+    -- saturates to 1: deep-south fields stay pure vanilla Gleba.
+    type = "noise-expression",
+    name = "eon_gleba_blend_input",
+    expression = "gleba_shape + south_uncapped",
+    local_expressions = {
+      gleba_shape = "eon_gleba_wobble_large + eon_gleba_wobble_medium + 30 * (moisture_nauvis - 0.5) + 15 * (aux_nauvis - 0.5)",
+      y_offset = "y - eon_gleba_south_offset",
+      south_uncapped = "y_offset / (1 + pow(2, 0.01 * y_offset)) + 0.1 * y_offset - 30"
+    }
+  },
+  {
+    -- 0 north of the line, 1 deep south. Both tile systems read blended
+    -- fields through this, so vanilla's own soft selects draw the boundary.
+    type = "noise-expression",
+    name = "eon_gleba_blend",
+    expression = "t * t * (3 - 2 * t)",
+    local_expressions = {
+      t = "clamp(eon_gleba_blend_input / 120, 0, 1)"
+    }
+  },
+  eon_copy_vanilla_field("gleba_moisture", "eon_gleba_moisture_vanilla"),
+  eon_copy_vanilla_field("gleba_aux", "eon_gleba_aux_vanilla"),
+  eon_copy_vanilla_field("gleba_elevation", "eon_gleba_elevation_vanilla"),
+  {
+    -- Same 0..1 meaning both sides: wet north stays wet south.
+    type = "noise-expression",
+    name = "eon_moisture_blended",
+    expression = "lerp(moisture_nauvis, eon_gleba_moisture_vanilla, eon_gleba_blend)"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_aux_blended",
+    expression = "lerp(aux_nauvis, eon_gleba_aux_vanilla, eon_gleba_blend)"
+  },
+  {
+    -- One elevation morph for both readers: north is Nauvis ground (lakes and
+    -- all), deep south is vanilla Gleba. Mid-band is the average, so a lake on
+    -- either side stays a lake through the band instead of hitting a wall.
+    type = "noise-expression",
+    name = "eon_elevation_blended",
+    expression = "lerp(elevation_nauvis, eon_gleba_elevation_vanilla, eon_gleba_blend)"
+  },
   {
     type = "noise-function",
     name = "eon_gleba_region",
     parameters = {"threshold"},
-    expression = "eon_mask_off_vulcano_coverage(if(gleba_noise + gleba_intermediate_noise + gleba_small_noise + moisture_nauvis + south_offset > threshold, 1, 0))",
-    local_expressions = {
-      gleba_noise = "quick_multioctave_noise{x = x,\z
-                                             y = y,\z
-                                             seed0 = map_seed,\z
-                                             seed1 = 5,\z
-                                             octaves = 4,\z
-                                             input_scale = var('control:gleba_plants:frequency') / 32,\z
-                                             output_scale = 1/2,\z
-                                             octave_output_scale_multiplier = 3,\z
-                                             octave_input_scale_multiplier = 1/3}",
-      gleba_intermediate_noise = "quick_multioctave_noise{x = x,\z
-                                                          y = y,\z
-                                                          seed0 = map_seed,\z
-                                                          seed1 = 6,\z
-                                                          octaves = 4,\z
-                                                          input_scale = var('control:gleba_plants:frequency') / 32,\z
-                                                          output_scale = 2,\z
-                                                          octave_output_scale_multiplier = 3,\z
-                                                          octave_input_scale_multiplier = 1/3}",
-      gleba_small_noise = "quick_multioctave_noise{x = x,\z
-                                                          y = y,\z
-                                                          seed0 = map_seed,\z
-                                                          seed1 = 7,\z
-                                                          octaves = 4,\z
-                                                          input_scale = var('control:gleba_plants:frequency') / 4,\z
-                                                          output_scale = 1,\z
-                                                          octave_output_scale_multiplier = 3,\z
-                                                          octave_input_scale_multiplier = 1/3}",
-      y_offset = "y - eon_gleba_south_offset",  -- gleba starts around eon_gleba_south_offset tiles to the south
-      -- The linear term originally grew forever, making far-south tiles pure Gleba (no Nauvis
-      -- pockets, no biter nests). The cap keeps mostly Gleba with regular Nauvis gaps.
-      south_offset = "min(y_offset / (1 + pow(2, 0.01 * y_offset)) + 0.1 * y_offset - 60, eon_gleba_deep_south_cap)"
-    }
+    expression = "eon_mask_off_vulcano_coverage(if(eon_gleba_transition > threshold, 1, 0))"
+  },
+  {
+    -- Uncapped twin of the region: same curves, but the ramp grows forever so
+    -- it saturates deep south. Water uses this, never the capped one: oceans
+    -- don't need biter gaps, and the cap is what turned southern lakes into
+    -- splattery Nauvis-water pockets. Land keeps the capped mask (gaps stay
+    -- for the separate deep-south enemies task).
+    type = "noise-function",
+    name = "eon_gleba_region_deep",
+    parameters = {"threshold"},
+    expression = "eon_mask_off_vulcano_coverage(if(eon_gleba_blend_input > threshold, 1, 0))"
   },
   {
     type = "noise-function",
     name = "eon_gleba_agriculture_spots",
     -- WHY THE FUCK IS spot_radius_expression NOT DOING ANYTHING HERE???
     parameters = {"seed", "spot_radius_expression"},
-    expression = "eon_mask_gleba_territory(spot_noise{x = x + wobble_noise_x * 15,\z
+    -- Spots (yumako/jellynut wetlands + soils) live well inside the mixing
+    -- band (region 60) so the line never cuts a wetland patch in half.
+    expression = "if(eon_gleba_region(60), spot_noise{x = x + wobble_noise_x * 15,\z
                                                       y = y + wobble_noise_y * 15,\z
                                                       seed0 = map_seed,\z
                                                       seed1 = seed,\z
@@ -918,12 +1010,26 @@ data:extend({
                                                       hard_region_target_quantity = 0,\z
                                                       spot_favorability_expression = 60,\z
                                                       basement_value = -0.5,\z
-                                                      maximum_spot_basement_radius = 128})",
+                                                      maximum_spot_basement_radius = 128}, -inf)",
     local_expressions =
     {
       wobble_noise_x = "multioctave_noise{x = x, y = y, persistence = 0.5, seed0 = map_seed, seed1 = 3000000, octaves = 2, input_scale = 1/20}",
       wobble_noise_y = "multioctave_noise{x = x, y = y, persistence = 0.5, seed0 = map_seed, seed1 = 4000000, octaves = 2, input_scale = 1/20}"
     }
+  },
+  {
+    -- Nauvis side of the mixing band: alive while transition < threshold.
+    type = "noise-function",
+    name = "eon_mask_nauvis_deep",
+    parameters = {"expression", "threshold"},
+    expression = "eon_mask_off_aquilo_territory(eon_mask_off_vulcano_terrain(if(eon_gleba_region(threshold), -inf, expression)))"
+  },
+  {
+    -- Gleba side of the mixing band: alive once transition > threshold.
+    type = "noise-function",
+    name = "eon_mask_gleba_early",
+    parameters = {"expression", "threshold"},
+    expression = "if(eon_gleba_region(threshold), expression, -inf)"
   },
   {
     -- Mask all gleba territory
@@ -933,6 +1039,14 @@ data:extend({
     expression = "if(eon_gleba_mask, expression, -inf)"
   },
   {
+    -- Same water line the Nauvis tiles are cut at (region_deep(-10)), so
+    -- oceans continue water-to-water instead of going dry at the border.
+    type = "noise-function",
+    name = "eon_mask_gleba_water",
+    parameters = {"expression"},
+    expression = "if(eon_gleba_region_deep(-10), expression, -inf)"
+  },
+  {
     -- Mask off all gleba territory
     type = "noise-function",
     name = "eon_mask_off_gleba_territory",
@@ -940,6 +1054,27 @@ data:extend({
     expression = "if(eon_gleba_mask, -inf, expression)"
   },
 })
+
+-- Point both tile systems at the blended fields. North of the band everything
+-- resolves to pure Nauvis, deep south to pure vanilla Gleba; inside the band
+-- one continuous landscape draws both, so vanilla's soft selects (not our
+-- binary mask) shape the visible transition. Hard masks stay as backstop.
+data.raw["noise-expression"]["gleba_moisture"].expression = "eon_moisture_blended"
+data.raw["noise-expression"]["gleba_aux"].expression = "eon_aux_blended"
+data.raw["noise-expression"]["gleba_aux"].local_expressions = nil
+data.raw["noise-expression"]["gleba_elevation"].expression = "eon_elevation_blended"
+data.raw["noise-expression"]["gleba_elevation"].local_expressions = nil
+-- Southern oceans, guaranteed: vanilla basins have never fired on Nauvis, so
+-- both water tiles also read Nauvis elevation directly (which demonstrably has
+-- basins at these exact spots). max() keeps whichever says water; the two
+-- fields agree on waterlines by nature (<0 both sides), so shores stay clean.
+local eon_deep_lake_vanilla = data.raw["noise-expression"]["eon_gleba_deep_lake"].expression
+data.raw["noise-expression"]["eon_gleba_deep_lake"].expression = "max(" .. eon_deep_lake_vanilla .. ", 12 * gleba_select(elevation_nauvis, -500, -2, 0.5, 0, 1))"
+local eon_blue_slime_vanilla = data.raw["noise-expression"]["eon_wetland_blue_slime"].expression
+data.raw["noise-expression"]["eon_wetland_blue_slime"].expression = "max(" .. eon_blue_slime_vanilla .. ", 8 * gleba_select(elevation_nauvis, -2.5, -0.5, 0.5, 0, 1))"
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["moisture"] = "eon_moisture_blended"
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["aux"] = "eon_aux_blended"
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["elevation"] = "eon_elevation_blended"
 
 --------------------------------------------------------------------------------
 -- MARK: Fix Vulcanus related map gen settings
@@ -1246,16 +1381,19 @@ data:extend({
     expression = "300 * clamp((eon_mountain_volcano_spots - 0.60) / 0.25, 0, 1)"
   },
   {
-    -- Cliff elevation with volcano spikes: base nauvis behavior everywhere else.
+    -- Cliff elevation follows the same blend as the tiles: Nauvis contours
+    -- north, Gleba elevation contours deep south (vanilla Gleba uses the
+    -- elevation property directly). Volcano spikes still ring volcanoes.
     type = "noise-expression",
     name = "eon_cliff_elevation",
-    expression = "cliff_elevation_nauvis + eon_volcano_cliff_spike"
+    expression = "lerp(cliff_elevation_nauvis, eon_elevation_blended, eon_gleba_blend) + eon_volcano_cliff_spike"
   },
   {
-    -- Cliffiness with volcanoes enabled: base nauvis behavior everywhere else.
+    -- Cliffiness with volcanoes enabled, blending to vanilla Gleba density
+    -- (gleba_cliffiness) deep south.
     type = "noise-expression",
     name = "eon_cliffiness",
-    expression = "if(eon_vulcanus_terrain, 1.5, cliffiness_nauvis)"
+    expression = "if(eon_vulcanus_terrain, 1.5, lerp(cliffiness_nauvis, gleba_cliffiness, eon_gleba_blend))"
   },
   -- Noise functions
   {

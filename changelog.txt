@@ -3,6 +3,7 @@ Version: 0.1.10
 Date: 2026-09-XX
   Changes:
     - Ashland and flaming ashland trees grow on volcano terrain.
+    - Nauvis-Gleba transition is now a ~300-tile mixing band instead of a hard line: highland/midland reach north, sand/dirt/grass persist south by wetness, water still hands over at the same line, fields morph across the full width. Fruit wetlands sit mid-band so patches stay intact.
     - Fewer chimneys and volcanic rocks spawn on volcano terrain.
   Bugfixes:
     - Demolisher territory now sits centered and inside volcanoes: it uses a half-chunk-shifted eroded volcano mask (spots > 0.55, water excluded) to compensate chunk-aligned territory sampling, which cut off the top/left and poked outside to the bottom/right. Territories exist only on volcano terrain, so demolishers stay at volcanoes.
