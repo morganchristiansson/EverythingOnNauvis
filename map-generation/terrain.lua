@@ -832,10 +832,67 @@ data.raw["noise-expression"]["gleba_plants_noise_b"].expression = "eon_mask_gleb
 -- END: Update noise expressions
 
 -- New noise expressions and noise functions
-data.raw.tile["wetland-jellynut"].autoplace.probability_expression = "eon_jellynut_spots"
-data.raw.tile["wetland-yumako"].autoplace.probability_expression = "eon_yumako_spots"
-data.raw.tile["natural-jellynut-soil"].autoplace.probability_expression = "eon_jellynut_soil"
-data.raw.tile["natural-yumako-soil"].autoplace.probability_expression = "eon_yumako_soil"
+data.raw.tile["wetland-jellynut"].autoplace.probability_expression = "eon_mask_gleba_territory(clamp((gleba_fertile_spots_coastal - 0.3) * 5000, -inf, 2) * (1 - gleba_biome_mask_red) * gleba_above_deep_water_mask)"
+data.raw.tile["wetland-yumako"].autoplace.probability_expression = "eon_mask_gleba_territory(clamp((gleba_fertile_spots_coastal - 0.3) * 5000, -inf, 2) * (1 - gleba_biome_mask_green) * gleba_above_deep_water_mask)"
+data.raw.tile["natural-jellynut-soil"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_solid * 50000 - 40000 - gleba_biome_mask_red * 1000000)"
+data.raw.tile["natural-yumako-soil"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_solid * 50000 - 40000 - gleba_biome_mask_green * 1000000)"
+
+-- Frontier "starting area": mirror vanilla's guaranteed yumako/jellynut
+-- patches onto the land just below the transition (players arrive down the
+-- x = 0 axis). Angles are degrees, 180 = south. Everything downstream
+-- (wetlands, soils, even pentapod nesting via fertile spots) then behaves
+-- exactly like vanilla's spawn: engineered pair up front, raw vanilla
+-- provinces everywhere else, deep south regular Gleba, untouched.
+data:extend({
+  {
+    type = "noise-expression",
+    name = "eon_yumako_frontier",
+    expression = "starting_spot_at_angle{angle = 180 + 12 * gleba_starting_direction,\z
+                                             distance = eon_gleba_south_offset + 320,\z
+                                             radius = 100,\z
+                                             x_distortion = gleba_wobble_x * 15,\z
+                                             y_distortion = gleba_wobble_y * 15}"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_jellynut_frontier",
+    expression = "starting_spot_at_angle{angle = 180 - 12 * gleba_starting_direction,\z
+                                             distance = eon_gleba_south_offset + 320,\z
+                                             radius = 70,\z
+                                             x_distortion = gleba_wobble_x * 15,\z
+                                             y_distortion = gleba_wobble_y * 15}"
+  },
+})
+data.raw["noise-expression"]["gleba_starting_fertile"].expression = "max(eon_yumako_frontier, eon_jellynut_frontier) * gleba_above_deep_water_mask"
+
+-- Frontier lowland bowls: vanilla sinks engineered lowland terrain under its
+-- starting patches; vanilla's own lowland blend only reaches near origin, so
+-- these twin bowls (same sites as the fertile patches, vanilla lowland radii)
+-- sink the terrain in OUR elevation blend instead. Fruit sits in wet
+-- clearings, never forced uphill; outside the bowls the elevation penalties
+-- apply again, which keeps sprawl contained.
+data:extend({
+  {
+    type = "noise-expression",
+    name = "eon_yumako_bowl",
+    expression = "starting_spot_at_angle{angle = 180 + 12 * gleba_starting_direction,\z
+                                             distance = eon_gleba_south_offset + 320,\z
+                                             radius = 98,\z
+                                             x_distortion = gleba_wobble_x * 15,\z
+                                             y_distortion = gleba_wobble_y * 15}"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_jellynut_bowl",
+    expression = "starting_spot_at_angle{angle = 180 - 12 * gleba_starting_direction,\z
+                                             distance = eon_gleba_south_offset + 320,\z
+                                             radius = 70,\z
+                                             x_distortion = gleba_wobble_x * 15,\z
+                                             y_distortion = gleba_wobble_y * 15}"
+  },
+})
+-- (gleba_starting_lowlands itself stays vanilla: its blend weight is zero
+-- out here, the bowls above do the shaping instead).
 
 -- Correlate Gleba fields with Nauvis fields by shared meaning (see blend below).
 -- `elevation` on Nauvis is NOT `gleba_elevation`: the property resolves per
@@ -867,26 +924,6 @@ data:extend({
     type = "noise-expression",
     name = "eon_gleba_mask",
     expression = "eon_gleba_region(0)"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_jellynut_spots",
-    expression = "clamp(eon_gleba_agriculture_spots(1, 64) * 5000, -inf, 2)"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_yumako_spots",
-    expression = "clamp(eon_gleba_agriculture_spots(2, 64) * 5000, -inf, 2)"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_jellynut_soil",
-    expression = "eon_gleba_agriculture_spots(1, 32) * 6"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_yumako_soil",
-    expression = "eon_gleba_agriculture_spots(2, 32) * 6"
   },
 
   -- Continuous transition value for the line (region) and backstop masks.
@@ -961,61 +998,49 @@ data:extend({
   {
     type = "noise-expression",
     name = "eon_aux_blended",
-    expression = "lerp(aux_nauvis, eon_gleba_aux_vanilla, eon_gleba_blend)"
+    expression = "lerp(lerp(base_blend, 0.35, yumako_halo), 0.65, jelly_halo)",
+    local_expressions =
+    {
+      base_blend = "lerp(aux_nauvis, eon_gleba_aux_vanilla, eon_gleba_blend)",
+      -- Engineered aux near the frontier patches (vanilla does the same with
+      -- starting_aux near spawn): guarantees the west patch grows yumako /
+      -- copper and the east patch jellynut / iron instead of gambling on the
+      -- province lottery. Stromatolites and decor follow automatically.
+      yumako_halo = "clamp(eon_yumako_frontier * 1.1, 0, 1)",
+      jelly_halo = "clamp(eon_jellynut_frontier * 1.1, 0, 1)"
+    }
   },
   {
     -- One elevation morph for both readers: north is Nauvis ground (lakes and
     -- all), deep south is vanilla Gleba. Mid-band is the average, so a lake on
     -- either side stays a lake through the band instead of hitting a wall.
+    -- Frontier bowls sink engineered lowland under the fruit patches (mirror
+    -- of vanilla starting_lowlands, which only blends near origin and can't
+    -- reach the frontier): fruit sits in wet clearings, never forced uphill.
     type = "noise-expression",
     name = "eon_elevation_blended",
-    expression = "lerp(elevation_nauvis, eon_gleba_elevation_vanilla, eon_gleba_blend)"
+    expression = "lerp(lerp(elevation_nauvis, eon_gleba_elevation_vanilla, eon_gleba_blend), 5, bowl_mask)",
+    local_expressions =
+    {
+      bowl_mask = "clamp(max(eon_yumako_bowl, eon_jellynut_bowl), 0, 1)"
+    }
   },
   {
     type = "noise-function",
     name = "eon_gleba_region",
     parameters = {"threshold"},
-    expression = "eon_mask_off_vulcano_coverage(if(eon_gleba_transition > threshold, 1, 0))"
+    -- Full volcano terrain (including the outer folds-flat ring) takes
+    -- precedence: Gleba never covers any volcano ground (aquilo > vulcanus
+    -- > gleba > nauvis). Demolishers keep their whole volcano.
+    expression = "eon_mask_off_vulcano_terrain(if(eon_gleba_transition > threshold, 1, 0))"
   },
   {
-    -- Uncapped twin of the region: same curves, but the ramp grows forever so
-    -- it saturates deep south. Water uses this, never the capped one: oceans
-    -- don't need biter gaps, and the cap is what turned southern lakes into
-    -- splattery Nauvis-water pockets. Land keeps the capped mask (gaps stay
-    -- for the separate deep-south enemies task).
+    -- Uncapped twin of the region: same curves, ramp grows forever south.
+    -- Water uses this so southern lakes can never become Nauvis pockets.
     type = "noise-function",
     name = "eon_gleba_region_deep",
     parameters = {"threshold"},
     expression = "eon_mask_off_vulcano_coverage(if(eon_gleba_blend_input > threshold, 1, 0))"
-  },
-  {
-    type = "noise-function",
-    name = "eon_gleba_agriculture_spots",
-    -- WHY THE FUCK IS spot_radius_expression NOT DOING ANYTHING HERE???
-    parameters = {"seed", "spot_radius_expression"},
-    -- Spots (yumako/jellynut wetlands + soils) live well inside the mixing
-    -- band (region 60) so the line never cuts a wetland patch in half.
-    expression = "if(eon_gleba_region(60), spot_noise{x = x + wobble_noise_x * 15,\z
-                                                      y = y + wobble_noise_y * 15,\z
-                                                      seed0 = map_seed,\z
-                                                      seed1 = seed,\z
-                                                      candidate_spot_count = 4,\z
-                                                      suggested_minimum_candidate_point_spacing = 128,\z
-                                                      skip_span = 1,\z
-                                                      skip_offset = 0,\z
-                                                      region_size = 1024,\z
-                                                      density_expression = 80,\z
-                                                      spot_quantity_expression = 1000,\z
-                                                      spot_radius_expression = spot_radius_expression,\z
-                                                      hard_region_target_quantity = 0,\z
-                                                      spot_favorability_expression = 60,\z
-                                                      basement_value = -0.5,\z
-                                                      maximum_spot_basement_radius = 128}, -inf)",
-    local_expressions =
-    {
-      wobble_noise_x = "multioctave_noise{x = x, y = y, persistence = 0.5, seed0 = map_seed, seed1 = 3000000, octaves = 2, input_scale = 1/20}",
-      wobble_noise_y = "multioctave_noise{x = x, y = y, persistence = 0.5, seed0 = map_seed, seed1 = 4000000, octaves = 2, input_scale = 1/20}"
-    }
   },
   {
     -- Nauvis side of the mixing band: alive while transition < threshold.
@@ -1064,14 +1089,10 @@ data.raw["noise-expression"]["gleba_aux"].expression = "eon_aux_blended"
 data.raw["noise-expression"]["gleba_aux"].local_expressions = nil
 data.raw["noise-expression"]["gleba_elevation"].expression = "eon_elevation_blended"
 data.raw["noise-expression"]["gleba_elevation"].local_expressions = nil
--- Southern oceans, guaranteed: vanilla basins have never fired on Nauvis, so
--- both water tiles also read Nauvis elevation directly (which demonstrably has
--- basins at these exact spots). max() keeps whichever says water; the two
--- fields agree on waterlines by nature (<0 both sides), so shores stay clean.
-local eon_deep_lake_vanilla = data.raw["noise-expression"]["eon_gleba_deep_lake"].expression
-data.raw["noise-expression"]["eon_gleba_deep_lake"].expression = "max(" .. eon_deep_lake_vanilla .. ", 12 * gleba_select(elevation_nauvis, -500, -2, 0.5, 0, 1))"
-local eon_blue_slime_vanilla = data.raw["noise-expression"]["eon_wetland_blue_slime"].expression
-data.raw["noise-expression"]["eon_wetland_blue_slime"].expression = "max(" .. eon_blue_slime_vanilla .. ", 8 * gleba_select(elevation_nauvis, -2.5, -0.5, 0.5, 0, 1))"
+-- Southern oceans come from vanilla basins only (see tile allow-list fix).
+-- An earlier workaround also keyed water to Nauvis elevation; that painted
+-- slime on dry highland near shores and is removed.
+data.raw["noise-expression"]["eon_wetland_blue_slime"].expression = "6 * gleba_select(gleba_elevation, gleba_deep_water_level, -4, 0.5, 0, 1) + 5 * gleba_rockpools_bluewater"
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["moisture"] = "eon_moisture_blended"
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["aux"] = "eon_aux_blended"
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["elevation"] = "eon_elevation_blended"

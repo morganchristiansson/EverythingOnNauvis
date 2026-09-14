@@ -3,13 +3,17 @@ Version: 0.1.10
 Date: 2026-09-XX
   Changes:
     - Ashland and flaming ashland trees grow on volcano terrain.
-    - Nauvis-Gleba transition is now a ~300-tile mixing band instead of a hard line: highland/midland reach north, sand/dirt/grass persist south by wetness, water still hands over at the same line, fields morph across the full width. Fruit wetlands sit mid-band so patches stay intact.
+    - Frontier fruit mirrors vanilla's starting area: one yumako + one jellynut patch just below the transition (vanilla sizes, local aux halos and lowland bowls); deep south is regular vanilla Gleba with shared fruit/ore provinces.
+    - Nauvis-Gleba transition is a mixing band instead of a hard line: highland/midland reach north, dry Nauvis tiles die out early, forest and grass end at the shore fringe, water hands over water-to-water, fields morph across the full width.
     - Fewer chimneys and volcanic rocks spawn on volcano terrain.
   Bugfixes:
     - Demolisher territory now sits centered and inside volcanoes: it uses a half-chunk-shifted eroded volcano mask (spots > 0.55, water excluded) to compensate chunk-aligned territory sampling, which cut off the top/left and poked outside to the bottom/right. Territories exist only on volcano terrain, so demolishers stay at volcanoes.
     - Nauvis ores (iron, copper, stone, coal, uranium, crude oil, holmium/scrap) no longer spawn inside volcano areas.
     - Dead grey trunks no longer spawn outside Nauvis territory (no more dead trees on volcanoes).
     - Volcanoes get elevation-driven cliff terraces up their flanks; rings generate as nauvis cliffs and control.lua re-skins volcano-terrain ones as cliff-vulcanus, keeping orientation. Only newly generated chunks convert.
+    - Gleba lakes restored: wetland-blue-slime and gleba-deep-lake are registered on Nauvis again (unlisted tiles never place), with water handing over water-to-water at the border.
+    - Gleba no longer takes priority over volcano terrain: the full volcano (including the outer folds-flat ring, i.e. demolisher territory) now beats Gleba everywhere, per aquilo > vulcanus > gleba > nauvis.
+    - Gleba territory now grows cliff-gleba cliffs: cliff elevation/density blend toward Gleba fields in the south and control.lua re-skins new-chunk cliffs on Gleba tiles (same pattern as cliff-vulcanus).
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.9
 Date: 2025-05-XX
