@@ -34,6 +34,17 @@ function terrain.mask_aquilo_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_aquilo_territory(" .. data_util.generate_eon_name(decorative) .. ")"
 end
 
+-- Aquilo feathering: land decoratives (bergs, drifts, ice decals) reach past
+-- the territory edge onto northern land; water-bound floaters reach onto
+-- Nauvis water. Reach is in elevation units; verified empirically.
+function terrain.mask_aquilo_land_early(decorative, decorative_type, reach)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_aquilo_land_early(" .. data_util.generate_eon_name(decorative) .. ", " .. reach .. ")"
+end
+
+function terrain.mask_aquilo_water_early(decorative, decorative_type, reach)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_aquilo_water_early(" .. data_util.generate_eon_name(decorative) .. ", " .. reach .. ")"
+end
+
 function terrain.mask_off_aquilo_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_off_aquilo_territory(" .. data_util.generate_eon_name(decorative) .. ")"
 end
@@ -86,6 +97,7 @@ function terrain.mask_volcano_early(decorative, decorative_type, threshold)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_volcano_early(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
 end
 
+
 function terrain.mask_off_vulcano_terrain(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_off_vulcano_terrain(" .. data_util.generate_eon_name(decorative) .. ")"
 end
@@ -115,7 +127,7 @@ data.raw.tile["deepwater"].autoplace.probability_expression = "eon_updated_deepw
 -- START: Mask nauvis territory on all autoplace settings
 -- Remove nauvis trees from eon_vulcanus_terrain
 -- data.raw["noise-expression"]["trees_forest_path_cutout"].expression = "mask_off_vulcano_terrain(min(nauvis_bridge_paths, nauvis_hills_paths, forest_paths))"
-data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "eon_mask_nauvis_deep(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 10)"
+data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "max(eon_mask_nauvis_deep(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 10), eon_mask_off_vulcano_terrain(eon_mask_nauvis_aquilo_fringe(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 1.5)), if(eon_mountain_volcano_spots > 0.2, 4 * eon_mask_off_ammonia_ocean(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1) * clamp((0.6 - eon_mountain_volcano_spots) / 0.4, 0, 1), -inf))"
 
 -- Dead trees only grow on nauvis territory (same fix as EverythingOnNauvis-Patches).
 -- Masked at expression level like trees_forest_path_cutout_faded: tree_dead_grey_trunk
@@ -291,32 +303,37 @@ terrain.mask_aquilo_territory("snow-patchy", "tile")
 -- terrain.mask_aquilo_territory("ice-smooth", "tile")
 -- terrain.mask_aquilo_territory("brash-ice", "tile")
 
--- mask aquilo decoratives
-terrain.mask_aquilo_territory("lithium-iceberg-medium", "optimized-decorative")
-terrain.mask_aquilo_territory("lithium-iceberg-small", "optimized-decorative")
-terrain.mask_aquilo_territory("lithium-iceberg-tiny", "optimized-decorative")
-terrain.mask_aquilo_territory("floating-iceberg-large", "optimized-decorative")
-terrain.mask_aquilo_territory("floating-iceberg-small", "optimized-decorative")
-terrain.mask_aquilo_territory("aqulio-ice-decal-blue", "optimized-decorative")
-terrain.mask_aquilo_territory("aqulio-snowy-decal", "optimized-decorative")
-terrain.mask_aquilo_territory("snow-drift-decal", "optimized-decorative")
+-- mask aquilo decoratives (feathered past the territory edge: bergs and drifts
+-- onto northern land, floaters onto Nauvis water; narrow bands with falloff)
+terrain.mask_aquilo_land_early("lithium-iceberg-medium", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_early("lithium-iceberg-small", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_early("lithium-iceberg-tiny", "optimized-decorative", 1.5)
+terrain.mask_aquilo_water_early("floating-iceberg-large", "optimized-decorative", 2)
+terrain.mask_aquilo_water_early("floating-iceberg-small", "optimized-decorative", 2)
+terrain.mask_aquilo_land_early("aqulio-ice-decal-blue", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_early("aqulio-snowy-decal", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_early("snow-drift-decal", "optimized-decorative", 1.5)
 
--- mask aquilo entities
-terrain.mask_aquilo_territory("lithium-iceberg-huge", "simple-entity")
-terrain.mask_aquilo_territory("lithium-iceberg-big", "simple-entity")
+-- mask aquilo entities (never onto volcanoes: the land_early guard handles it)
+terrain.mask_aquilo_land_early("lithium-iceberg-huge", "simple-entity", 1.5)
+terrain.mask_aquilo_land_early("lithium-iceberg-big", "simple-entity", 1.5)
 -- END: Mask aquilo territory on all autoplace settings
 
 -- START: Update noise expressions
-data.raw.tile["ammoniacal-ocean"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_ammonia + 0.01 * (aux - 0.5))"
-data.raw.tile["ammoniacal-ocean-2"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_ammonia - 0.01 * (aux - 0.5))"
+-- Volcano buffer: no ice or ammonia within volcano influence (spots > 0.12),
+-- so demolisher patrols never step off volcanic ground. Outer volcanoes beat
+-- Aquilo, full stop.
+local eon_aquilo_volcano_buffer = "if(eon_mountain_volcano_spots > 0.12, -inf, "
+data.raw.tile["ammoniacal-ocean"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_ammonia + 0.01 * (aux - 0.5)))"
+data.raw.tile["ammoniacal-ocean-2"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_ammonia - 0.01 * (aux - 0.5)))"
 
-data.raw.tile["snow-flat"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_land)"
+data.raw.tile["snow-flat"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_land))"
 -- data.raw.tile["snow-crests"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_land)"
 -- data.raw.tile["snow-lumpy"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_land)"
 -- data.raw.tile["snow-patchy"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_land)"
-data.raw.tile["ice-rough"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 1.5, 200))"
-data.raw.tile["ice-smooth"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 1, 200))"
-data.raw.tile["brash-ice"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 0.5, 200))"
+data.raw.tile["ice-rough"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 1.5, 200)))"
+data.raw.tile["ice-smooth"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 1, 200)))"
+data.raw.tile["brash-ice"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 0.5, 200)))"
 -- END: Update noise expressions
 
 data:extend({
@@ -517,6 +534,34 @@ data:extend({
     name = "eon_mask_off_ammonia_ocean",
     parameters = {"expression"},
     expression = "if(eon_ammonia_mask, -inf, expression)"
+  },
+  {
+    -- Feather bands beyond aquilo territory: the same base fields with raised
+    -- ceilings reach further south (floating ice onto Nauvis water, bergs and
+    -- drifts onto northern land). Off-gleba AND off-volcano guards keep them
+    -- out of southern wetlands (low elevation would otherwise also match)
+    -- and off volcanoes (demolisher ground stays volcanic). Probability
+    -- fades with distance from the border via the base field value.
+    type = "noise-function",
+    name = "eon_mask_aquilo_land_early",
+    parameters = {"expression", "reach"},
+    expression = "if(eon_aquilo_base(eon_aquilo_max_elevation + reach, 100) > 0, eon_mask_off_vulcano_terrain(eon_mask_off_gleba_territory(expression * clamp(eon_aquilo_base(eon_aquilo_max_elevation + reach, 100) / 30, 0.3, 1))), -inf)"
+  },
+  {
+    type = "noise-function",
+    name = "eon_mask_aquilo_water_early",
+    parameters = {"expression", "reach"},
+    expression = "if(eon_aquilo_base(eon_aquilo_ammonia_depth + reach, 200) > 0, eon_mask_off_vulcano_terrain(eon_mask_off_gleba_territory(expression * clamp(eon_aquilo_base(eon_aquilo_ammonia_depth + reach, 200) / 60, 0.3, 1))), -inf)"
+  },
+  {
+    -- Fringe ring just outside aquilo territory (widened land minus the
+    -- territory itself): Nauvis decoratives reach onto the icy shore fringe
+    -- so the north reads as progression too, mirroring the volcano rim.
+    -- Fades with distance like the other feather bands.
+    type = "noise-function",
+    name = "eon_mask_nauvis_aquilo_fringe",
+    parameters = {"expression", "reach"},
+    expression = "if(eon_aquilo_base(eon_aquilo_max_elevation + reach, 100) > 0, if(eon_aquilo_mask, -inf, expression * clamp(eon_aquilo_base(eon_aquilo_max_elevation + reach, 100) / 30, 0.3, 1)), -inf)"
   },
 })
 
@@ -805,9 +850,10 @@ terrain.mask_gleba_early("boompuff", "tree", -35)
 terrain.mask_gleba_early("sunnycomb", "tree", -35)
 -- Water-cane feathers instead of banding: density scales up across the
 -- handoff (present thinly in Nauvis deepwater north of the line, full in
--- Gleba shallows south), so no abrupt start/stop. Vanilla expression keeps
--- it out of lava and far-north water on its own merits.
-data.raw["tree"]["water-cane"].autoplace.probability_expression = "eon_water_cane * clamp((eon_gleba_transition + 60) / 100, 0, 1)"
+-- Gleba shallows south), so no abrupt start/stop. Explicitly off volcano
+-- terrain: vanilla keeps it out of lava on Gleba, but Nauvis lava sits in
+-- mineable flank blobs where cane would otherwise strand.
+data.raw["tree"]["water-cane"].autoplace.probability_expression = "eon_mask_off_vulcano_terrain(eon_water_cane) * clamp((eon_gleba_transition + 60) / 100, 0, 1)"
 
 if not mods["Spaghetorio"] then
   terrain.mask_gleba_early("honeycomb-fungus", "optimized-decorative", -40)
@@ -1243,7 +1289,7 @@ data.raw.tile["volcanic-folds-flat"].autoplace.probability_expression = "eon_upd
 data.raw.tile["lava"].autoplace.probability_expression = "eon_lava_mountains_range"
 data.raw.tile["lava-hot"].autoplace.probability_expression = "eon_lava_hot_mountains_range"
 
-data.raw.cliff["crater-cliff"].autoplace.probability_expression = "eon_lava_hot_mountains_range"
+data.raw.cliff["crater-cliff"].autoplace.probability_expression = "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(eon_lava_hot_mountains_range))"
 
 -- Cliff contours ring volcanoes like space-age (see eon_cliff_elevation): the engine places
 -- cliff segments along elevation contours with native orientations and connections.
@@ -1265,29 +1311,29 @@ terrain.mask_vulcano_coverage("big-volcanic-rock", "simple-entity")
 -- wider than mid details), mirroring the staggered Gleba transition. Chimneys
 -- and big rocks stay on tight coverage above; lava fire stays on terrain.
 -- Outer debris band
-terrain.mask_volcano_early("medium-volcanic-rock", "optimized-decorative", 0.2)
-terrain.mask_volcano_early("small-volcanic-rock", "optimized-decorative", 0.2)
-terrain.mask_volcano_early("tiny-volcanic-rock", "optimized-decorative", 0.2)
-terrain.mask_volcano_early("tiny-rock-cluster", "optimized-decorative", 0.2)
-terrain.mask_volcano_early("vulcanus-sand-decal", "optimized-decorative", 0.2)
-terrain.mask_volcano_early("vulcanus-dune-decal", "optimized-decorative", 0.2)
-terrain.mask_volcano_early("waves-decal", "optimized-decorative", 0.2)
+terrain.mask_volcano_early("medium-volcanic-rock", "optimized-decorative", 0.40)
+terrain.mask_volcano_early("small-volcanic-rock", "optimized-decorative", 0.40)
+terrain.mask_volcano_early("tiny-volcanic-rock", "optimized-decorative", 0.40)
+terrain.mask_volcano_early("tiny-rock-cluster", "optimized-decorative", 0.40)
+terrain.mask_volcano_early("vulcanus-sand-decal", "optimized-decorative", 0.40)
+terrain.mask_volcano_early("vulcanus-dune-decal", "optimized-decorative", 0.40)
+terrain.mask_volcano_early("waves-decal", "optimized-decorative", 0.40)
 -- Mid detail band
-terrain.mask_volcano_early("vulcanus-rock-decal-large", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("vulcanus-crack-decal", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("vulcanus-crack-decal-large", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("vulcanus-crack-decal-huge-warm", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("vulcanus-crack-decal-warm", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("sulfur-stain", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("sulfur-stain-small", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("sulfuric-acid-puddle", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("sulfuric-acid-puddle-small", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("crater-small", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("crater-large", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("pumice-relief-decal", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("small-sulfur-rock", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("tiny-sulfur-rock", "optimized-decorative", 0.3)
-terrain.mask_volcano_early("sulfur-rock-cluster", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("vulcanus-rock-decal-large", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("vulcanus-crack-decal", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("vulcanus-crack-decal-large", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("vulcanus-crack-decal-huge-warm", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("vulcanus-crack-decal-warm", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("sulfur-stain", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("sulfur-stain-small", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("sulfuric-acid-puddle", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("sulfuric-acid-puddle-small", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("crater-small", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("crater-large", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("pumice-relief-decal", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("small-sulfur-rock", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("tiny-sulfur-rock", "optimized-decorative", 0.43)
+terrain.mask_volcano_early("sulfur-rock-cluster", "optimized-decorative", 0.43)
 -- Lava fire stays on volcano terrain
 terrain.mask_vulcano_terrain("vulcanus-lava-fire", "optimized-decorative")
 -- Calcite stains pair with calcite ore wherever it grows (inside or outside
@@ -1319,7 +1365,8 @@ data.raw["optimized-decorative"]["calcite-stain-small"].autoplace.probability_ex
 
 -- Ashland trees on volcano terrain (ported from EverythingOnNauvis-Patches)
 data.raw["tree"]["ashland-lichen-tree"].autoplace.probability_expression = "eon_mask_vulcano_terrain(0.05 * eon_vulcano_ashland_tree_density)"
-data.raw["tree"]["ashland-lichen-tree-flaming"].autoplace.probability_expression = "eon_mask_vulcano_terrain(0.02 * eon_vulcano_ashland_tree_density)"
+-- Flaming variant stays deep inside (coverage only, not the outer flat ring).
+data.raw["tree"]["ashland-lichen-tree-flaming"].autoplace.probability_expression = "eon_mask_vulcano_coverage(0.02 * eon_vulcano_ashland_tree_density)"
 
 -- Fewer chimneys and rocks on volcano terrain (ported from EverythingOnNauvis-Patches)
 data.raw["simple-entity"]["vulcanus-chimney"].autoplace.probability_expression = "0.2 * (" .. data.raw["simple-entity"]["vulcanus-chimney"].autoplace.probability_expression .. ")"
@@ -1371,12 +1418,28 @@ data:extend({
   },
   {
     type = "noise-expression",
-    name = "eon_volcano_starting_protector",
-    expression = "clamp(starting_spot_at_angle{ angle = vulcanus_mountains_angle + 180 * vulcanus_starting_direction,\z
-                                                distance = (400 * vulcanus_starting_area_radius) / 2,\z
-                                                radius = 800 * vulcanus_starting_area_radius,\z
-                                                x_distortion = vulcanus_wobble_x/2 + vulcanus_wobble_large_x/12 + vulcanus_wobble_huge_x/80,\z
-                                                y_distortion = vulcanus_wobble_y/2 + vulcanus_wobble_large_y/12 + vulcanus_wobble_huge_y/80}, 0, 1)"
+    -- Spawn gate for volcanoes: smooth 0 near spawn to 1 further out. It
+    -- throttles candidate DENSITY (fewer/no volcanoes near spawn) but never
+    -- touches field values, so volcanoes that do form are always whole -- the
+    -- old starting-spot subtraction cropped overlapping volcanoes (missing
+    -- lava, clipped demolisher territory). Favorability is deliberately NOT
+    -- gated: gated fields would make weak, lava-less volcanoes in the ramp.
+    name = "eon_volcano_spawn_gate",
+    expression = "clamp((distance - 850 * eon_starting_radius) / (850 * eon_starting_radius), 0, 1)"
+  },
+  {
+    -- Volcanoes grow bigger further from spawn.
+    type = "noise-expression",
+    name = "eon_volcano_size_dist",
+    expression = "0.8 + 0.4 * min(distance / 5000, 1)"
+  },
+  {
+    -- Effective volcanism (vanilla formula): couples the size and frequency
+    -- sliders into volcano packing density. Shared here so the demolisher
+    -- size progression can normalize distance by it (see enemies.lua).
+    type = "noise-expression",
+    name = "eon_volcanism",
+    expression = "0.3 + 0.7 * slider_rescale(control:vulcanus_volcanism:size, 3) / slider_rescale(vulcanus_scale_multiplier, 3)"
   },
   {
     -- Detail noise with an explicit position offset (base vulcanus_detail_noise has none).
@@ -1388,31 +1451,35 @@ data:extend({
   {
     -- Volcano spots evaluated at an offset position, so tiles and territory share one
     -- definition: (0, 0) for tiles, (16, 16) to compensate chunk-aligned territory sampling.
+    -- Two spot systems (small/dense + big/sparse, different seeds) merge into varied
+    -- volcano sizes; quantity stays radius-squared so field peaks behave the same
+    -- at every size.
     type = "noise-function",
     name = "eon_volcano_spots_at",
-    parameters = {"x_offset", "y_offset"},
+    parameters = {"x_offset", "y_offset", "seed", "spacing_mult", "size_mult"},
     expression = "spot_noise{x = x + x_offset + eon_detail_noise_at{seed1 = 10, scale = 1/8, octaves = 2, magnitude = 4, x_offset = x_offset, y_offset = y_offset}/2 + eon_detail_noise_at{seed1 = 20, scale = 1/2, octaves = 2, magnitude = 50, x_offset = x_offset, y_offset = y_offset}/12 + eon_detail_noise_at{seed1 = 30, scale = 2, octaves = 2, magnitude = 800, x_offset = x_offset, y_offset = y_offset}/80,\z
                              y = y + y_offset + eon_detail_noise_at{seed1 = 1010, scale = 1/8, octaves = 2, magnitude = 4, x_offset = x_offset, y_offset = y_offset}/2 + eon_detail_noise_at{seed1 = 1020, scale = 1/2, octaves = 2, magnitude = 50, x_offset = x_offset, y_offset = y_offset}/12 + eon_detail_noise_at{seed1 = 1030, scale = 2, octaves = 2, magnitude = 800, x_offset = x_offset, y_offset = y_offset}/80,\z
                              seed0 = map_seed,\z
-                             seed1 = 1,\z
+                             seed1 = seed,\z
                              candidate_spot_count = 1,\z
-                             suggested_minimum_candidate_point_spacing = volcano_spot_spacing,\z
+                             suggested_minimum_candidate_point_spacing = volcano_spot_spacing * spacing_mult,\z
                              skip_span = 1,\z
                              skip_offset = 0,\z
                              region_size = 256*density_multiplier,\z
-                             density_expression = volcano_area / volcanism_sq,\z
-                             spot_quantity_expression = volcano_spot_radius * volcano_spot_radius,\z
-                             spot_radius_expression = volcano_spot_radius,\z
+                             density_expression = volcano_area / volcanism_sq * eon_volcano_spawn_gate,\z
+                             spot_quantity_expression = volcano_spot_size * volcano_spot_size,\z
+                             spot_radius_expression = volcano_spot_size,\z
                              hard_region_target_quantity = 0,\z
                              spot_favorability_expression = volcano_area,\z
                              basement_value = 0,\z
-                             maximum_spot_basement_radius = volcano_spot_radius}",
+                             maximum_spot_basement_radius = volcano_spot_radius * size_mult}",
     local_expressions =
     {
       volcano_area = "lerp(vulcanus_mountains_biome_full_pre_volcano, 0, vulcanus_starting_area)",
-      volcanism = "0.3 + 0.7 * slider_rescale(control:vulcanus_volcanism:size, 3) / slider_rescale(vulcanus_scale_multiplier, 3)",
+      volcanism = "eon_volcanism",
       volcanism_sq = "volcanism * volcanism",
       volcano_spot_radius = "300 * volcanism * sqrt(1 + control:vulcanus_volcanism:size)",
+      volcano_spot_size = "volcano_spot_radius * size_mult * eon_volcano_size_dist",
       volcano_spot_spacing = "1500 * volcanism",
       density_multiplier = "5 / sqrt(control:vulcanus_volcanism:frequency)"
     }
@@ -1420,15 +1487,39 @@ data:extend({
   {
     type = "noise-expression",
     name = "eon_mountain_volcano_spots",
-    -- Removes starter spot from vulcanus
-    expression = "eon_volcano_spots_at{x_offset = 0, y_offset = 0} - eon_volcano_starting_protector"
+    -- Whole volcanoes everywhere: spawn protection lives in candidate density
+    -- (eon_volcano_spawn_gate), never as field subtraction, so nothing here
+    -- can crop a volcano.
+    expression = "max(eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 1, spacing_mult = 1, size_mult = 0.75}, eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25})"
   },
   {
     -- Territory sampling is chunk-aligned (biased down/right half a chunk); the 16px
     -- offset above moves the mask up-left to compensate (see eon_volcano_spots_at).
+    -- No spawn gate here either: with no spots near spawn there is no territory
+    -- there, and rims may legitimately overlap the gate zone.
+    -- Small and big systems are named separately (not just merged) so the
+    -- demolisher size logic can tell small-only ground apart from big ground.
+    type = "noise-expression",
+    name = "eon_terr_volcano_small",
+    expression = "eon_volcano_spots_at{x_offset = 16, y_offset = 16, seed = 1, spacing_mult = 1, size_mult = 0.75}"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_terr_volcano_big",
+    expression = "eon_volcano_spots_at{x_offset = 16, y_offset = 16, seed = 2, spacing_mult = 1.8, size_mult = 1.25}"
+  },
+  {
     type = "noise-expression",
     name = "eon_terr_volcano_spots",
-    expression = "if(eon_volcano_starting_protector > 0.03, 0, eon_volcano_spots_at{x_offset = 16, y_offset = 16})"
+    expression = "max(eon_terr_volcano_small, eon_terr_volcano_big)"
+  },
+  {
+    -- Size cap for demolishers: small-only volcano ground (strong small field,
+    -- weak big field) grows at most medium demolishers, so big ones never sit
+    -- on small volcanoes. Anywhere big ground is strong, distance decides.
+    type = "noise-expression",
+    name = "eon_volcano_small_cap",
+    expression = "if(eon_terr_volcano_small > 0.5, if(eon_terr_volcano_big > 0.5, 4, 1), 4)"
   },
   {
     -- Eroded volcano mask for demolisher territory: territory is sampled per 32x32 chunk
@@ -1440,7 +1531,7 @@ data:extend({
     -- the shifted field above.
     type = "noise-expression",
     name = "eon_demolisher_territory",
-    expression = "(eon_terr_volcano_spots > 0.55) * (eon_updated_water <= 0) * (eon_updated_deepwater <= 0) * (eon_aquilo_ammonia <= -1) * (eon_mask_off_vulcano_terrain(eon_wetland_blue_slime) <= 0)"
+    expression = "(eon_terr_volcano_spots > 0.5) * (eon_updated_water <= 0) * (eon_updated_deepwater <= 0) * (eon_aquilo_ammonia <= -1) * (eon_mask_off_vulcano_terrain(eon_wetland_blue_slime) <= 0)"
   },
   {
     -- Seed: 3329457809 south east
@@ -1452,7 +1543,7 @@ data:extend({
     -- Removes all lava spots except vulkane
     type = "noise-expression",
     name = "eon_lava_mountains_range",
-    expression = "1100 * range_select_base(eon_mountain_lava_spots, 0.3, 1, 1, 0, 1) - eon_offset_vulcano"
+    expression = "1100 * range_select_base(eon_mountain_lava_spots, 0.3, 10, 1, 0, 1) - eon_offset_vulcano"
   },
   {
     -- Removes all lava spots except vulkane
@@ -1535,11 +1626,13 @@ data:extend({
     expression = "if(eon_vulcanus_terrain, expression, -inf)"
   },
   {
-    -- Feather band around volcanoes (see terrain.mask_volcano_early).
+    -- Feather band around volcanoes (see terrain.mask_volcano_early), fading
+    -- with distance from the terrain edge (~0.46): full strength at the edge,
+    -- quarter strength at the band's outer reach.
     type = "noise-function",
     name = "eon_mask_volcano_early",
     parameters = {"expression", "threshold"},
-    expression = "if(eon_mountain_volcano_spots > threshold, expression, -inf)"
+    expression = "if(eon_mountain_volcano_spots > threshold, expression * clamp((eon_mountain_volcano_spots - threshold) / (0.46 - threshold), 0.25, 1), -inf)"
   },
   {
     -- Mask off close surroundings of vulcano
@@ -1557,5 +1650,96 @@ data:extend({
   },
 })
 -- END: Update noise expressions
+
+--------------------------------------------------------------------------------
+-- MARK: Nauvis decoratives feather into volcano rims
+--------------------------------------------------------------------------------
+-- Inverse feather so volcano borders read as progression, not a wall: Nauvis
+-- decoratives reach a short way INTO volcanoes (spots 0.46-0.65: the rim
+-- between terrain edge and deep interior). Runs LAST because the Gleba
+-- section legitimately overwrites some of these with transition flora; the
+-- max() keeps whichever membership applies, so northern rims get Nauvis
+-- types, southern rims get both, and deep interiors stay volcanic.
+-- (This also restores northern grass tufts etc., which the overwrite had
+-- accidentally confined to Gleba.)
+local eon_nauvis_rim_decoratives = {
+  { "cracked-mud-decal", "optimized-decorative", true },
+  { "dark-mud-decal", "optimized-decorative", true },
+  { "lichen-decal", "optimized-decorative", true },
+  { "light-mud-decal", "optimized-decorative", true },
+  { "small-rock", "optimized-decorative", true },
+  { "small-sand-rock", "optimized-decorative", true },
+  { "tiny-rock", "optimized-decorative", true },
+
+  { "brown-asterisk", "optimized-decorative", false },
+  { "brown-asterisk-mini", "optimized-decorative", false },
+  { "brown-carpet-grass", "optimized-decorative", false },
+  { "brown-fluff", "optimized-decorative", false },
+  { "brown-fluff-dry", "optimized-decorative", false },
+  { "brown-hairy-grass", "optimized-decorative", false },
+  { "garballo", "optimized-decorative", false },
+  { "garballo-mini-dry", "optimized-decorative", false },
+  { "green-asterisk", "optimized-decorative", false },
+  { "green-asterisk-mini", "optimized-decorative", false },
+  { "green-bush-mini", "optimized-decorative", false },
+  { "green-carpet-grass", "optimized-decorative", false },
+  { "green-croton", "optimized-decorative", false },
+  { "green-desert-bush", "optimized-decorative", false },
+  { "green-hairy-grass", "optimized-decorative", false },
+  { "green-pita", "optimized-decorative", false },
+  { "green-pita-mini", "optimized-decorative", false },
+  { "green-small-grass", "optimized-decorative", false },
+  { "medium-rock", "optimized-decorative", true },
+  { "medium-sand-rock", "optimized-decorative", true },
+  { "red-asterisk", "optimized-decorative", false },
+  { "red-croton", "optimized-decorative", false },
+  { "red-desert-bush", "optimized-decorative", false },
+  { "red-desert-decal", "optimized-decorative", true },
+  { "red-pita", "optimized-decorative", false },
+  { "sand-decal", "optimized-decorative", true },
+  { "sand-dune-decal", "optimized-decorative", true },
+  { "white-desert-bush", "optimized-decorative", false },
+}
+
+for _, entry in pairs(eon_nauvis_rim_decoratives) do
+  local current = data.raw[entry[2]][entry[1]].autoplace.probability_expression
+  -- NOTE: the allowances use the raw snapshot, NOT the nauvis-masked one:
+  -- eon_mask_nauvis_territory already excludes all volcano terrain, which would
+  -- keep the rim shut. Only ammonia ocean stays excluded (grass tufts floating
+  -- on ammonia look wrong); vanilla patterns handle lakes themselves. The
+  -- aquilo fringe lets the same decoratives onto the icy shore fringe, so the
+  -- north reads as progression too. Both allowances are boosted: shared
+  -- patterns starve against their abundant elsewhere-selves (see rim notes).
+  local snap = data_util.generate_eon_name(entry[1])
+  -- The volcano rim applies to everything left in the list (rock entities
+  -- were removed: they stay strictly on Nauvis); the aquilo fringe only to
+  -- rock and ground-stain types. Flora carpeting snowfields reads wrong,
+  -- while rocks on snow read as erratics.
+  local fringe = entry[3] and ("4 * eon_mask_nauvis_aquilo_fringe(" .. snap .. ", 1)") or "-inf"
+  -- Band-gated with falloff: the allowance only lives on the outer rim
+  -- (spots 0.25-0.52) and fades deeper in, so Nauvis types fringe the edge
+  -- instead of carpeting Gleba/Aquilo or pushing into the interior. The
+  -- outer if() also cuts the deep interior entirely.
+  -- No aquilo guard on the rim: volcanoes outrank Aquilo, so northern rims
+  -- would otherwise go bald (aquilo blocks nauvis, volcano blocks aquilo).
+  -- Band widened slightly (0.2-0.55) after playtest showed bare rims.
+  local rim_allow = "if(eon_mountain_volcano_spots > 0.2, 4 * eon_mask_off_ammonia_ocean(" .. snap .. ") * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1), -inf)"
+  data.raw[entry[2]][entry[1]].autoplace.probability_expression =
+      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), " .. rim_allow .. ", " .. fringe .. "))"
+end
+
+-- Gleba transition flora shares the volcano rim (red-pita already rides the
+-- Nauvis loop above, so only the Gleba-native leaders are added here). Same
+-- band, same fade, implicit interior thinning like the trees.
+for _, name in pairs({
+  "honeycomb-fungus", "honeycomb-fungus-1x1", "honeycomb-fungus-decayed",
+  "yellow-lettuce-lichen-cups-1x1", "yellow-lettuce-lichen-cups-3x3",
+  "yellow-lettuce-lichen-cups-6x6", "coral-water",
+}) do
+  local current = data.raw["optimized-decorative"][name].autoplace.probability_expression
+  local snap = data_util.generate_eon_name(name)
+  data.raw["optimized-decorative"][name].autoplace.probability_expression =
+      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), if(eon_mountain_volcano_spots > 0.2, 4 * eon_mask_off_ammonia_ocean(" .. snap .. ") * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1), -inf)))"
+end
 
 return terrain

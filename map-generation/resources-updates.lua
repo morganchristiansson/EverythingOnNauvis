@@ -32,11 +32,19 @@ end
 -- Remove resources spawning on ammonia ocean
 -- Nauvis resources stay off volcano terrain and off Gleba territory entirely
 -- (vanilla Gleba has none of these; stone is handled separately below).
+-- Aquilo keeps only crude oil, lithium brine and fluorine vents: everything
+-- else stays off aquilo land and ammonia ocean too. Crude oil is the
+-- exception and keeps its aquilo presence.
 terrain.mask_resource_territory_off_gleba("iron-ore", "resource")
 terrain.mask_resource_territory_off_gleba("copper-ore", "resource")
 terrain.mask_resource_territory_off_gleba("coal", "resource")
 terrain.mask_resource_territory_off_gleba("uranium-ore", "resource")
 terrain.mask_resource_territory_off_gleba("crude-oil", "resource")
+for _, name in pairs({ "iron-ore", "copper-ore", "coal", "uranium-ore" }) do
+  local current = data.raw.resource[name].autoplace.probability_expression
+  data.raw.resource[name].autoplace.probability_expression =
+      "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(" .. current .. "))"
+end
 
 --------------------------------------------------------------------------------
 -- MARK: Remove Aquilo resources to from Aquilo -- Dunno why i have to do this only for this planet...
@@ -54,12 +62,22 @@ if holmium_ore then
   data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["holmium-ore"] = {}
   data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["holmium-ore"] = {}
   terrain.mask_resource_territory_off_gleba("holmium-ore", "resource")
+  do
+    local current = data.raw.resource["holmium-ore"].autoplace.probability_expression
+    data.raw.resource["holmium-ore"].autoplace.probability_expression =
+        "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(" .. current .. "))"
+  end
 else
   -- Keep scrap
   data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["scrap"] = {}
   data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["scrap"] = {}
   data.raw.resource["scrap"].autoplace.has_starting_area_placement = false  -- no scrap in the Nauvis starting area
   terrain.mask_resource_territory_off_gleba("scrap", "resource")
+  do
+    local current = data.raw.resource["scrap"].autoplace.probability_expression
+    data.raw.resource["scrap"].autoplace.probability_expression =
+        "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(" .. current .. "))"
+  end
 end
 
 --------------------------------------------------------------------------------
@@ -86,7 +104,7 @@ data:extend({
   },
 })
 local nauvis_stone_richness = data.raw.resource["stone"].autoplace.richness_expression
-data.raw.resource["stone"].autoplace.probability_expression = "if(eon_gleba_mask, eon_gleba_stone_probability, eon_mask_off_vulcano_terrain(eon_mask_resource_territory(eon_stone)))"
+data.raw.resource["stone"].autoplace.probability_expression = "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(if(eon_gleba_mask, eon_gleba_stone_probability, eon_mask_off_vulcano_terrain(eon_mask_resource_territory(eon_stone)))))"
 data.raw.resource["stone"].autoplace.richness_expression = "if(eon_gleba_mask, eon_gleba_stone_richness, (" .. nauvis_stone_richness .. "))"
 
 data.raw["autoplace-control"]["gleba_plants"].localised_description = {"autoplace-control-names.gleba_plants_description"}
@@ -119,8 +137,14 @@ data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["t
 -- autoplace_controls
 data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["sulfuric_acid_geyser"] = {}
 
--- Mask resources from ammonia ocean
+-- Mask resources from ammonia ocean (and off aquilo land / gleba: calcite is a
+-- volcano resource, not an aquilo/gleba one).
 terrain.mask_resource_territory_allow_volcano("calcite", "resource")
+do
+  local current = data.raw.resource["calcite"].autoplace.probability_expression
+  data.raw.resource["calcite"].autoplace.probability_expression =
+      "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(eon_mask_off_gleba_territory(" .. current .. ")))"
+end
 -- Tungsten is wired to volcano flanks below (not masked here).
 
 -- START: Fix Resource spawning
@@ -135,14 +159,15 @@ data.raw["noise-expression"]["vulcanus_starting_sulfur"].expression = "-inf"
 data.raw.resource["tungsten-ore"].autoplace.has_starting_area_placement = false -- Does nothing but noise expression vulcanus_starting_tungsten removes starter spot
 data.raw["noise-expression"]["vulcanus_starting_tungsten"].expression = "-inf"
 
--- Tungsten grows on volcano flanks, guarded by demolishers (vanilla Vulcanus
--- behavior). Spots are placed by vanilla-style spot noise favored by mineable
--- volcano ground (volcano terrain minus lava core and water, unshifted so it
--- aligns with tiles). Patches are smaller and more numerous than vanilla
--- (half size, more candidates) so they fit the narrow flanks. Spot blobs
--- centered near flank edges may spill onto neighboring tiles; that is fine.
--- There is no fallback: volcanism cannot be disabled, so every map has
--- volcanoes and therefore tungsten.
+-- Tungsten grows on inner volcano flanks, guarded by demolishers (vanilla
+-- Vulcanus behavior): spots favor mineable ground inside volcano coverage
+-- (folds ring, minus lava core and water -- not the outer folds-flat, so
+-- patches stay inside demolisher territory). Ore never places on lava tiles
+-- anyway, so no lava exclusion is needed. Patches are smaller and more
+-- numerous than vanilla (half size, more candidates) so they fit the flanks.
+-- Spot blobs centered near edges may spill onto neighboring tiles; that is
+-- fine. There is no fallback: volcanism cannot be disabled, so every map
+-- has volcanoes and therefore tungsten.
 data:extend({
   {
     type = "noise-expression",
@@ -152,7 +177,7 @@ data:extend({
   {
     type = "noise-expression",
     name = "eon_tungsten_volcano_favorability",
-    expression = "if(eon_vulcanus_terrain, if(eon_volcano_lava_core, 0, if(eon_updated_water <= 0, if(eon_updated_deepwater <= 0, 1, 0), 0)), 0)"
+    expression = "if(eon_vulcano_coverage, if(eon_volcano_lava_core, 0, if(eon_updated_water <= 0, if(eon_updated_deepwater <= 0, 1, 0), 0)), 0)"
   },
   {
     -- Clone of vulcanus_place_metal_spots with candidate density decoupled
@@ -182,7 +207,7 @@ data:extend({
   {
     type = "noise-expression",
     name = "eon_tungsten_volcano_region",
-    expression = "max(vulcanus_starting_tungsten, min(1 - vulcanus_starting_circle, eon_place_tungsten_spots(789, 24, 2, vulcanus_tungsten_ore_size * min(1.2, vulcanus_ore_dist) * 12, control:tungsten_ore:frequency, eon_tungsten_volcano_favorability)))"
+    expression = "max(vulcanus_starting_tungsten, min(1 - vulcanus_starting_circle, eon_place_tungsten_spots(789, 24, 2, vulcanus_tungsten_ore_size * (1 + 0.5 * min(distance / (1500 * eon_volcanism), 1)) * 12, control:tungsten_ore:frequency, eon_tungsten_volcano_favorability)))"
   },
   {
     type = "noise-expression",
@@ -197,6 +222,9 @@ data:extend({
 -- Vulcanus does this too): entities only spawn where richness > 0, so the
 -- old nauvis-style richness (default-patches pattern) silently vetoed every
 -- volcano patch. Mirror vanilla vulcanus richness with our region.
-data.raw.resource["tungsten-ore"].autoplace.richness_expression = "eon_tungsten_ore_region * random_penalty_between(0.9, 1, 1) * 10000 * control:tungsten_ore:richness / vulcanus_tungsten_ore_size"
-data.raw.resource["tungsten-ore"].autoplace.probability_expression = "eon_mask_resource_territory(eon_mask_off_ammonia_ocean((control:tungsten_ore:size > 0) * (1000 * ((0.7 + eon_tungsten_ore_region) * random_penalty_between(0.9, 1, 1) - 1))))"
+-- Richness gradients with distance (exploration reward): near-spawn values match
+-- the old formula, far volcanoes pay out more per tile; richness stays
+-- region-wide since probability gates.
+data.raw.resource["tungsten-ore"].autoplace.richness_expression = "eon_tungsten_ore_region * random_penalty_between(0.9, 1, 1) * 3500 * control:tungsten_ore:richness * (1 + min(distance / (1500 * eon_volcanism), 1)) / vulcanus_tungsten_ore_size"
+data.raw.resource["tungsten-ore"].autoplace.probability_expression = "eon_mask_off_aquilo_territory(eon_mask_resource_territory(eon_mask_off_ammonia_ocean((control:tungsten_ore:size > 0) * (1000 * ((0.7 + eon_tungsten_ore_region) * random_penalty_between(0.9, 1, 1) - 1)))))"
 -- END: Fix Resource spawning

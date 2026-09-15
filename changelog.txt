@@ -12,6 +12,13 @@ Date: 2026-09-XX
     - Tungsten ore now grows on volcano flanks, guarded by demolishers (vanilla Vulcanus behavior): smaller, more numerous patches favored by mineable volcano ground. No fallback: volcanism cannot be disabled, so every map has volcanoes and therefore tungsten.
     - Volcano decoratives feather past the terrain edge in two bands (outer debris wider than mid details), mirroring the staggered Gleba transition; chimneys, big rocks and lava fire stay tight.
     - Calcite stains now pair with calcite ore wherever it grows, inside or outside volcanoes, instead of only staining volcano terrain.
+    - Volcanoes vary in size (small/dense and big/sparse spot systems) and grow bigger further from spawn.
+    - Volcano spawn protection moved from field subtraction into candidate density: volcanoes near spawn are fewer, never cropped (no more missing lava or clipped demolisher territory).
+    - Demolisher sizes fit their volcanoes: slowed progression normalized by volcano packing density (yoinked from EverythingOnNauvis-Patches, dense maps progress earlier, sparse maps later), mixed sizes across a volcano's territories, small-only volcanoes capped to medium.
+    - Feathering pass: Nauvis decoratives fringe volcano rims (rock entities exempt) and the icy aquilo shore; aquilo bergs/drifts/floaters and Nauvis trees feather with distance falloff, never onto volcanoes; aquilio ice/ocean tiles keep a volcano buffer so patrols stay on volcanic ground; Gleba transition flora shares the volcano rim; crater-cliffs stay off Aquilo.
+    - Nauvis decoratives fringe volcano rims (band-gated with falloff, rock entities stay strictly home) and the icy aquilo shore (rocks only); aquilo bergs, drifts and floaters feather south with falloff, never onto volcanoes; Nauvis trees reach into Aquilo.
+    - Aquilo keeps only crude oil, lithium brine and fluorine vents: all other ores stay off aquilo land and ammonia ocean.
+    - Tungsten is leaner (richness base halved-ish) with frequency-normalized distance gradients; flaming ashland trees stay deep inside volcanoes; lava fills big-volcano centers (vanilla upper bound).
   Bugfixes:
     - Demolisher territory now sits centered and inside volcanoes: it uses a half-chunk-shifted eroded volcano mask (spots > 0.55, water excluded) to compensate chunk-aligned territory sampling, which cut off the top/left and poked outside to the bottom/right. Territories exist only on volcano terrain, so demolishers stay at volcanoes.
     - Nauvis ores (iron, copper, stone, coal, uranium, crude oil, holmium/scrap) no longer spawn inside volcano areas.
