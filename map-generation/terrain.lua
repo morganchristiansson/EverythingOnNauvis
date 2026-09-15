@@ -1094,10 +1094,12 @@ data:extend({
   {
     -- Uncapped twin of the region: same curves, ramp grows forever south.
     -- Water uses this so southern lakes can never become Nauvis pockets.
+    -- Like eon_gleba_region above, full volcano terrain (not just coverage)
+    -- takes precedence, so volcanoes punch through southern oceans.
     type = "noise-function",
     name = "eon_gleba_region_deep",
     parameters = {"threshold"},
-    expression = "eon_mask_off_vulcano_coverage(if(eon_gleba_blend_input > threshold, 1, 0))"
+    expression = "eon_mask_off_vulcano_terrain(if(eon_gleba_blend_input > threshold, 1, 0))"
   },
   {
     -- Nauvis side of the mixing band: alive while transition < threshold.
@@ -1123,6 +1125,8 @@ data:extend({
   {
     -- Same water line the Nauvis tiles are cut at (region_deep(-10)), so
     -- oceans continue water-to-water instead of going dry at the border.
+    -- Volcano priority over Gleba water comes from eon_gleba_region_deep,
+    -- which masks off all volcano terrain like eon_gleba_region does.
     type = "noise-function",
     name = "eon_mask_gleba_water",
     parameters = {"expression"},
@@ -1394,11 +1398,13 @@ data:extend({
     -- Eroded volcano mask for demolisher territory: territory is sampled per 32x32 chunk
     -- and includes any chunk whose corner touches the mask, so the mask is eroded by about
     -- one chunk to keep territory visually inside the volcano while still covering all lava.
-    -- Nauvis water/deepwater and ammonia ocean are excluded so territory never spills onto
-    -- water at coastal volcanoes. Evaluated on the shifted field above.
+    -- Nauvis water/deepwater, ammonia ocean and Gleba water are excluded so territory never
+    -- spills onto water at coastal volcanoes. The Gleba-water signal is itself masked off
+    -- volcano terrain, so ocean volcanoes keep their territory on the lava. Evaluated on
+    -- the shifted field above.
     type = "noise-expression",
     name = "eon_demolisher_territory",
-    expression = "(eon_terr_volcano_spots > 0.55) * (eon_updated_water <= 0) * (eon_updated_deepwater <= 0) * (eon_aquilo_ammonia <= -1)"
+    expression = "(eon_terr_volcano_spots > 0.55) * (eon_updated_water <= 0) * (eon_updated_deepwater <= 0) * (eon_aquilo_ammonia <= -1) * (eon_mask_off_vulcano_terrain(eon_wetland_blue_slime) <= 0)"
   },
   {
     -- Seed: 3329457809 south east
