@@ -134,6 +134,14 @@ data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "max
 -- is only used by dead-grey-trunk, which does not reference the faded expression.
 data.raw["noise-expression"]["tree_dead_grey_trunk"].expression = "eon_mask_nauvis_deep(" .. data.raw["noise-expression"]["tree_dead_grey_trunk"].expression .. ", 10)"
 
+-- Fish only spawn in nauvis territory (same fix as EverythingOnNauvis-Patches, which
+-- masks off aquilo territory + vulcanus terrain; the nauvis territory mask also
+-- covers gleba, so fish stay out of the wetlands/marshes too). Fish are restricted
+-- to liquid tiles, so this only affects lakes/oceans on the combined map.
+-- base expression is the literal 0.01 (gets string-coerced); eon_mask_nauvis_territory
+-- is off-aquilo(off-gleba(off-vulcanus(expression)))
+data.raw["fish"]["fish"].autoplace.probability_expression = "eon_mask_nauvis_territory(" .. data.raw["fish"]["fish"].autoplace.probability_expression .. ")"
+
 -- Remove nauvis decoratives from eon_vulcano_coverage
 terrain.mask_nauvis_territory("cracked-mud-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("dark-mud-decal", "optimized-decorative")
