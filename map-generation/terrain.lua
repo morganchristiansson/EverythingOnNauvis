@@ -101,12 +101,12 @@ data.raw.tile["deepwater"].autoplace.probability_expression = "eon_updated_deepw
 -- START: Mask nauvis territory on all autoplace settings
 -- Remove nauvis trees from eon_vulcanus_terrain
 -- data.raw["noise-expression"]["trees_forest_path_cutout"].expression = "mask_off_vulcano_terrain(min(nauvis_bridge_paths, nauvis_hills_paths, forest_paths))"
-data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "eon_mask_nauvis_deep(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 60)"
+data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "eon_mask_nauvis_deep(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 10)"
 
 -- Dead trees only grow on nauvis territory (same fix as EverythingOnNauvis-Patches).
 -- Masked at expression level like trees_forest_path_cutout_faded: tree_dead_grey_trunk
 -- is only used by dead-grey-trunk, which does not reference the faded expression.
-data.raw["noise-expression"]["tree_dead_grey_trunk"].expression = "eon_mask_nauvis_deep(" .. data.raw["noise-expression"]["tree_dead_grey_trunk"].expression .. ", 60)"
+data.raw["noise-expression"]["tree_dead_grey_trunk"].expression = "eon_mask_nauvis_deep(" .. data.raw["noise-expression"]["tree_dead_grey_trunk"].expression .. ", 10)"
 
 -- Remove nauvis decoratives from eon_vulcano_coverage
 terrain.mask_nauvis_territory("cracked-mud-decal", "optimized-decorative")
@@ -151,26 +151,28 @@ terrain.mask_nauvis_territory("sand-dune-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("white-desert-bush", "optimized-decorative")
 
 -- Remove nauvis tiles across the mixing band: dry sand dies first (north),
--- dirt in the middle, wet grass reaches deepest south (wet-meets-wet).
-terrain.mask_nauvis_deep("grass-1", "tile", 90)
-terrain.mask_nauvis_deep("grass-2", "tile", 90)
-terrain.mask_nauvis_deep("grass-3", "tile", 90)
-terrain.mask_nauvis_deep("grass-4", "tile", 90)
-terrain.mask_nauvis_deep("dry-dirt", "tile", 60)
-terrain.mask_nauvis_deep("dirt-1", "tile", 60)
-terrain.mask_nauvis_deep("dirt-2", "tile", 60)
-terrain.mask_nauvis_deep("dirt-3", "tile", 60)
-terrain.mask_nauvis_deep("dirt-4", "tile", 60)
-terrain.mask_nauvis_deep("dirt-5", "tile", 60)
-terrain.mask_nauvis_deep("dirt-6", "tile", 60)
-terrain.mask_nauvis_deep("dirt-7", "tile", 60)
-terrain.mask_nauvis_deep("sand-1", "tile", 35)
-terrain.mask_nauvis_deep("sand-2", "tile", 35)
-terrain.mask_nauvis_deep("sand-3", "tile", 35)
-terrain.mask_nauvis_deep("red-desert-0", "tile", 35)
-terrain.mask_nauvis_deep("red-desert-1", "tile", 35)
-terrain.mask_nauvis_deep("red-desert-2", "tile", 35)
-terrain.mask_nauvis_deep("red-desert-3", "tile", 35)
+-- dirt in the middle; grass ends with the rest at the water line — no deep
+-- wet fringe interleave with Gleba wetlands (twice-complained overlap).
+terrain.mask_nauvis_deep("grass-1", "tile", 10)
+terrain.mask_nauvis_deep("grass-2", "tile", 10)
+terrain.mask_nauvis_deep("grass-3", "tile", 10)
+terrain.mask_nauvis_deep("grass-4", "tile", 10)
+-- Mesic dirt ends where wetlands begin (clean handoff, no dirt-on-swamp).
+terrain.mask_nauvis_deep("dry-dirt", "tile", 10)
+terrain.mask_nauvis_deep("dirt-1", "tile", 10)
+terrain.mask_nauvis_deep("dirt-2", "tile", 10)
+terrain.mask_nauvis_deep("dirt-3", "tile", 10)
+terrain.mask_nauvis_deep("dirt-4", "tile", 10)
+terrain.mask_nauvis_deep("dirt-5", "tile", 10)
+terrain.mask_nauvis_deep("dirt-6", "tile", 10)
+terrain.mask_nauvis_deep("dirt-7", "tile", 10)
+terrain.mask_nauvis_deep("sand-1", "tile", -20)
+terrain.mask_nauvis_deep("sand-2", "tile", -20)
+terrain.mask_nauvis_deep("sand-3", "tile", -20)
+terrain.mask_nauvis_deep("red-desert-0", "tile", -20)
+terrain.mask_nauvis_deep("red-desert-1", "tile", -20)
+terrain.mask_nauvis_deep("red-desert-2", "tile", -20)
+terrain.mask_nauvis_deep("red-desert-3", "tile", -20)
 -- terrain.mask_nauvis_territory("water", "tile")
 -- terrain.mask_nauvis_territory("deepwater", "tile")
 -- END: Mask nauvis territory on all autoplace settings
@@ -654,6 +656,9 @@ terrain.mask_gleba_territory("wetland-yumako", "tile")
 terrain.mask_gleba_territory("wetland-jellynut", "tile")
 terrain.mask_gleba_water("wetland-blue-slime", "tile")
 terrain.mask_gleba_water("gleba-deep-lake", "tile")
+-- Non-fruit wetlands stay vanilla verbatim (territory mask only): the
+-- elevation gate thinned exactly the rockpool-driven wetlands vanilla is
+-- supposed to have, leaving midland stranded inside marshes.
 terrain.mask_gleba_territory("wetland-light-green-slime", "tile")
 terrain.mask_gleba_territory("wetland-green-slime", "tile")
 terrain.mask_gleba_territory("wetland-light-dead-skin", "tile")
@@ -692,13 +697,15 @@ terrain.mask_gleba_early("highland-dark-rock-2", "tile", -70)
 terrain.mask_gleba_early("highland-yellow-rock", "tile", -70)
 terrain.mask_gleba_early("pit-rock", "tile", -35)
 
--- mask gleba decoratives
+-- Decor-first transition: these water plants lead the tile line by ~50
+-- tiles so shores feather instead of cutting. None are collision-blocked
+-- on deepwater (only green/brown-cup are, and those stay put).
 terrain.mask_gleba_territory("yellow-lettuce-lichen-1x1", "optimized-decorative")
 terrain.mask_gleba_territory("yellow-lettuce-lichen-3x3", "optimized-decorative")
 terrain.mask_gleba_territory("yellow-lettuce-lichen-6x6", "optimized-decorative")
-terrain.mask_gleba_territory("yellow-lettuce-lichen-cups-1x1", "optimized-decorative")
-terrain.mask_gleba_territory("yellow-lettuce-lichen-cups-3x3", "optimized-decorative")
-terrain.mask_gleba_territory("yellow-lettuce-lichen-cups-6x6", "optimized-decorative")
+terrain.mask_gleba_early("yellow-lettuce-lichen-cups-1x1", "optimized-decorative", -40)
+terrain.mask_gleba_early("yellow-lettuce-lichen-cups-3x3", "optimized-decorative", -40)
+terrain.mask_gleba_early("yellow-lettuce-lichen-cups-6x6", "optimized-decorative", -40)
 terrain.mask_gleba_territory("green-lettuce-lichen-1x1", "optimized-decorative")
 terrain.mask_gleba_territory("green-lettuce-lichen-3x3", "optimized-decorative")
 terrain.mask_gleba_territory("green-lettuce-lichen-6x6", "optimized-decorative")
@@ -714,7 +721,7 @@ terrain.mask_gleba_territory("split-gill-red-2x2", "optimized-decorative")
 terrain.mask_gleba_territory("veins", "optimized-decorative")
 terrain.mask_gleba_territory("veins-small", "optimized-decorative")
 terrain.mask_gleba_territory("mycelium", "optimized-decorative")
-terrain.mask_gleba_territory("coral-water", "optimized-decorative")
+terrain.mask_gleba_early("coral-water", "optimized-decorative", -40)
 terrain.mask_gleba_territory("coral-land", "optimized-decorative")
 terrain.mask_gleba_territory("black-sceptre", "optimized-decorative")
 terrain.mask_gleba_territory("pink-phalanges", "optimized-decorative")
@@ -760,7 +767,7 @@ terrain.mask_gleba_territory("dark-mud-decal", "optimized-decorative")
 terrain.mask_gleba_territory("cracked-mud-decal", "optimized-decorative")
 terrain.mask_gleba_territory("red-desert-bush", "optimized-decorative")
 terrain.mask_gleba_territory("white-desert-bush", "optimized-decorative")
-terrain.mask_gleba_territory("red-pita", "optimized-decorative")
+terrain.mask_gleba_early("red-pita", "optimized-decorative", -40)
 terrain.mask_gleba_territory("green-bush-mini", "optimized-decorative")
 terrain.mask_gleba_territory("green-croton", "optimized-decorative")
 terrain.mask_gleba_territory("green-pita", "optimized-decorative")
@@ -782,12 +789,34 @@ terrain.mask_gleba_early("lickmaw", "tree", -35)
 terrain.mask_gleba_early("stingfrond", "tree", -35)
 terrain.mask_gleba_early("boompuff", "tree", -35)
 terrain.mask_gleba_early("sunnycomb", "tree", -35)
-terrain.mask_gleba_water("water-cane", "tree")  -- water plant follows the water handoff, not the tree line
+-- Water-cane feathers instead of banding: density scales up across the
+-- handoff (present thinly in Nauvis deepwater north of the line, full in
+-- Gleba shallows south), so no abrupt start/stop. Vanilla expression keeps
+-- it out of lava and far-north water on its own merits.
+data.raw["tree"]["water-cane"].autoplace.probability_expression = "eon_water_cane * clamp((eon_gleba_transition + 60) / 100, 0, 1)"
 
 if not mods["Spaghetorio"] then
-  terrain.mask_gleba_territory("honeycomb-fungus", "optimized-decorative")
-  terrain.mask_gleba_territory("honeycomb-fungus-1x1", "optimized-decorative")
-  terrain.mask_gleba_territory("honeycomb-fungus-decayed", "optimized-decorative")
+  terrain.mask_gleba_early("honeycomb-fungus", "optimized-decorative", -40)
+  terrain.mask_gleba_early("honeycomb-fungus-1x1", "optimized-decorative", -40)
+  terrain.mask_gleba_early("honeycomb-fungus-decayed", "optimized-decorative", -40)
+end
+
+-- Let named transition flora grow on deepwater: their doodad collision locks
+-- them off water tiles in vanilla, so drop doodad (keep cliff, keep
+-- no-self-collision) for just these. Tile-side opening put rocks and land
+-- decor on every Nauvis lake, so this stays scoped to transition plants.
+-- Masks still keep them out of volcanoes; probability still decides shores.
+data.raw["optimized-decorative"]["red-pita"].collision_mask = {
+  layers = {cliff = true},
+  not_colliding_with_itself = true
+}
+if not mods["Spaghetorio"] then
+  for _, name in pairs({"honeycomb-fungus", "honeycomb-fungus-1x1", "honeycomb-fungus-decayed"}) do
+    data.raw["optimized-decorative"][name].collision_mask = {
+      layers = {cliff = true},
+      not_colliding_with_itself = true
+    }
+  end
 end
 -- END: Mask gleba territory on all autoplace settings
 
@@ -832,8 +861,8 @@ data.raw["noise-expression"]["gleba_plants_noise_b"].expression = "eon_mask_gleb
 -- END: Update noise expressions
 
 -- New noise expressions and noise functions
-data.raw.tile["wetland-jellynut"].autoplace.probability_expression = "eon_mask_gleba_territory(clamp((gleba_fertile_spots_coastal - 0.3) * 5000, -inf, 2) * (1 - gleba_biome_mask_red) * gleba_above_deep_water_mask)"
-data.raw.tile["wetland-yumako"].autoplace.probability_expression = "eon_mask_gleba_territory(clamp((gleba_fertile_spots_coastal - 0.3) * 5000, -inf, 2) * (1 - gleba_biome_mask_green) * gleba_above_deep_water_mask)"
+data.raw.tile["wetland-jellynut"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_spots_coastal * 5000 * (1 - gleba_biome_mask_red) * gleba_above_deep_water_mask)"
+data.raw.tile["wetland-yumako"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_spots_coastal * 5000 * (1 - gleba_biome_mask_green) * gleba_above_deep_water_mask)"
 data.raw.tile["natural-jellynut-soil"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_solid * 50000 - 40000 - gleba_biome_mask_red * 1000000)"
 data.raw.tile["natural-yumako-soil"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_solid * 50000 - 40000 - gleba_biome_mask_green * 1000000)"
 
@@ -848,8 +877,8 @@ data:extend({
     type = "noise-expression",
     name = "eon_yumako_frontier",
     expression = "starting_spot_at_angle{angle = 180 + 12 * gleba_starting_direction,\z
-                                             distance = eon_gleba_south_offset + 320,\z
-                                             radius = 100,\z
+                                             distance = eon_gleba_south_offset + 1100,\z
+                                             radius = 30,\z
                                              x_distortion = gleba_wobble_x * 15,\z
                                              y_distortion = gleba_wobble_y * 15}"
   },
@@ -857,8 +886,8 @@ data:extend({
     type = "noise-expression",
     name = "eon_jellynut_frontier",
     expression = "starting_spot_at_angle{angle = 180 - 12 * gleba_starting_direction,\z
-                                             distance = eon_gleba_south_offset + 320,\z
-                                             radius = 70,\z
+                                             distance = eon_gleba_south_offset + 1100,\z
+                                             radius = 30,\z
                                              x_distortion = gleba_wobble_x * 15,\z
                                              y_distortion = gleba_wobble_y * 15}"
   },
@@ -876,7 +905,7 @@ data:extend({
     type = "noise-expression",
     name = "eon_yumako_bowl",
     expression = "starting_spot_at_angle{angle = 180 + 12 * gleba_starting_direction,\z
-                                             distance = eon_gleba_south_offset + 320,\z
+                                             distance = eon_gleba_south_offset + 1100,\z
                                              radius = 98,\z
                                              x_distortion = gleba_wobble_x * 15,\z
                                              y_distortion = gleba_wobble_y * 15}"
@@ -885,7 +914,7 @@ data:extend({
     type = "noise-expression",
     name = "eon_jellynut_bowl",
     expression = "starting_spot_at_angle{angle = 180 - 12 * gleba_starting_direction,\z
-                                             distance = eon_gleba_south_offset + 320,\z
+                                             distance = eon_gleba_south_offset + 1100,\z
                                              radius = 70,\z
                                              x_distortion = gleba_wobble_x * 15,\z
                                              y_distortion = gleba_wobble_y * 15}"
@@ -986,6 +1015,28 @@ data:extend({
       t = "clamp(eon_gleba_blend_input / 120, 0, 1)"
     }
   },
+  {
+    -- Fast moisture twin for shoreline signals only: vanilla's water-plant
+    -- ramp is steep because moisture tracks elevation steeply at shores; our
+    -- slow morph flattened it into a plateau and grew dense bands instead of
+    -- fringes. Same formula, sharper field. Plain moisture keeps the slow
+    -- morph for the wide mixing.
+    type = "noise-expression",
+    name = "eon_moisture_fast",
+    expression = "lerp(moisture_nauvis, eon_gleba_moisture_vanilla, eon_gleba_blend_fast)"
+  },
+  {
+    -- Fast twin for elevation: water/shore/highland bands need crisp
+    -- elevation (pit-rock lives above 20, wetlands below ~10 — a slow morph
+    -- parks both in the middle and they end up side by side, which vanilla
+    -- never does).
+    type = "noise-expression",
+    name = "eon_gleba_blend_fast",
+    expression = "t * t * (3 - 2 * t)",
+    local_expressions = {
+      t = "clamp(eon_gleba_blend_input / 30, 0, 1)"
+    }
+  },
   eon_copy_vanilla_field("gleba_moisture", "eon_gleba_moisture_vanilla"),
   eon_copy_vanilla_field("gleba_aux", "eon_gleba_aux_vanilla"),
   eon_copy_vanilla_field("gleba_elevation", "eon_gleba_elevation_vanilla"),
@@ -998,10 +1049,10 @@ data:extend({
   {
     type = "noise-expression",
     name = "eon_aux_blended",
-    expression = "lerp(lerp(base_blend, 0.35, yumako_halo), 0.65, jelly_halo)",
+    expression = "lerp(lerp(base_blend_fast, 0.35, yumako_halo), 0.65, jelly_halo)",
     local_expressions =
     {
-      base_blend = "lerp(aux_nauvis, eon_gleba_aux_vanilla, eon_gleba_blend)",
+      base_blend_fast = "lerp(aux_nauvis, eon_gleba_aux_vanilla, eon_gleba_blend_fast)",
       -- Engineered aux near the frontier patches (vanilla does the same with
       -- starting_aux near spawn): guarantees the west patch grows yumako /
       -- copper and the east patch jellynut / iron instead of gambling on the
@@ -1019,7 +1070,7 @@ data:extend({
     -- reach the frontier): fruit sits in wet clearings, never forced uphill.
     type = "noise-expression",
     name = "eon_elevation_blended",
-    expression = "lerp(lerp(elevation_nauvis, eon_gleba_elevation_vanilla, eon_gleba_blend), 5, bowl_mask)",
+    expression = "lerp(lerp(elevation_nauvis, eon_gleba_elevation_vanilla, eon_gleba_blend_fast), 5, bowl_mask)",
     local_expressions =
     {
       bowl_mask = "clamp(max(eon_yumako_bowl, eon_jellynut_bowl), 0, 1)"
@@ -1085,6 +1136,10 @@ data:extend({
 -- one continuous landscape draws both, so vanilla's soft selects (not our
 -- binary mask) shape the visible transition. Hard masks stay as backstop.
 data.raw["noise-expression"]["gleba_moisture"].expression = "eon_moisture_blended"
+-- Shoreline signal for the whole water-plant family (cane, shore plants,
+-- lettuce, corals): identical formula, sharper field, so fringes stay
+-- fringes on both sides of the handoff instead of banding.
+data.raw["noise-expression"]["gleba_water_plant_ramp"].expression = "clamp((0.8 - eon_moisture_fast) * 20, 0, 1)"
 data.raw["noise-expression"]["gleba_aux"].expression = "eon_aux_blended"
 data.raw["noise-expression"]["gleba_aux"].local_expressions = nil
 data.raw["noise-expression"]["gleba_elevation"].expression = "eon_elevation_blended"
@@ -1407,7 +1462,7 @@ data:extend({
     -- elevation property directly). Volcano spikes still ring volcanoes.
     type = "noise-expression",
     name = "eon_cliff_elevation",
-    expression = "lerp(cliff_elevation_nauvis, eon_elevation_blended, eon_gleba_blend) + eon_volcano_cliff_spike"
+    expression = "lerp(cliff_elevation_nauvis, eon_elevation_blended, eon_gleba_blend_fast) + eon_volcano_cliff_spike"
   },
   {
     -- Cliffiness with volcanoes enabled, blending to vanilla Gleba density
