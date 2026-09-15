@@ -78,6 +78,14 @@ function terrain.mask_vulcano_terrain(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_vulcano_terrain(" .. data_util.generate_eon_name(decorative) .. ")"
 end
 
+-- Volcano decoratives feather past the terrain edge, like Gleba decoratives
+-- feather past the border with eon_mask_gleba_early: volcano terrain sits at
+-- eon_mountain_volcano_spots above ~0.46, so a lower threshold widens the
+-- band (higher/wider = further out, capped by the spots' basement radius).
+function terrain.mask_volcano_early(decorative, decorative_type, threshold)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_volcano_early(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
+end
+
 function terrain.mask_off_vulcano_terrain(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_off_vulcano_terrain(" .. data_util.generate_eon_name(decorative) .. ")"
 end
@@ -1253,32 +1261,60 @@ terrain.mask_vulcano_coverage("vulcanus-chimney-truncated", "simple-entity")
 terrain.mask_vulcano_coverage("huge-volcanic-rock", "simple-entity")
 terrain.mask_vulcano_coverage("big-volcanic-rock", "simple-entity")
 
--- Mask decoratives close to vulcano terrain
-terrain.mask_vulcano_terrain("vulcanus-rock-decal-large", "optimized-decorative")
-terrain.mask_vulcano_terrain("vulcanus-crack-decal", "optimized-decorative")
-terrain.mask_vulcano_terrain("vulcanus-crack-decal-large", "optimized-decorative")
-terrain.mask_vulcano_terrain("vulcanus-crack-decal-huge-warm", "optimized-decorative")
-terrain.mask_vulcano_terrain("vulcanus-crack-decal-warm", "optimized-decorative")
-terrain.mask_vulcano_terrain("calcite-stain", "optimized-decorative")
-terrain.mask_vulcano_terrain("calcite-stain-small", "optimized-decorative")
-terrain.mask_vulcano_terrain("sulfur-stain", "optimized-decorative")
-terrain.mask_vulcano_terrain("sulfur-stain-small", "optimized-decorative")
-terrain.mask_vulcano_terrain("sulfuric-acid-puddle", "optimized-decorative")
-terrain.mask_vulcano_terrain("sulfuric-acid-puddle-small", "optimized-decorative")
-terrain.mask_vulcano_terrain("crater-small", "optimized-decorative")
-terrain.mask_vulcano_terrain("crater-large", "optimized-decorative")
-terrain.mask_vulcano_terrain("pumice-relief-decal", "optimized-decorative")
-terrain.mask_vulcano_terrain("vulcanus-sand-decal", "optimized-decorative")
-terrain.mask_vulcano_terrain("vulcanus-dune-decal", "optimized-decorative")
-terrain.mask_vulcano_terrain("waves-decal", "optimized-decorative")
-terrain.mask_vulcano_terrain("medium-volcanic-rock", "optimized-decorative")
-terrain.mask_vulcano_terrain("small-volcanic-rock", "optimized-decorative")
-terrain.mask_vulcano_terrain("tiny-volcanic-rock", "optimized-decorative")
-terrain.mask_vulcano_terrain("tiny-rock-cluster", "optimized-decorative")
-terrain.mask_vulcano_terrain("small-sulfur-rock", "optimized-decorative")
-terrain.mask_vulcano_terrain("tiny-sulfur-rock", "optimized-decorative")
-terrain.mask_vulcano_terrain("sulfur-rock-cluster", "optimized-decorative")
+-- Volcano decoratives feather past the terrain edge in two bands (outer debris
+-- wider than mid details), mirroring the staggered Gleba transition. Chimneys
+-- and big rocks stay on tight coverage above; lava fire stays on terrain.
+-- Outer debris band
+terrain.mask_volcano_early("medium-volcanic-rock", "optimized-decorative", 0.2)
+terrain.mask_volcano_early("small-volcanic-rock", "optimized-decorative", 0.2)
+terrain.mask_volcano_early("tiny-volcanic-rock", "optimized-decorative", 0.2)
+terrain.mask_volcano_early("tiny-rock-cluster", "optimized-decorative", 0.2)
+terrain.mask_volcano_early("vulcanus-sand-decal", "optimized-decorative", 0.2)
+terrain.mask_volcano_early("vulcanus-dune-decal", "optimized-decorative", 0.2)
+terrain.mask_volcano_early("waves-decal", "optimized-decorative", 0.2)
+-- Mid detail band
+terrain.mask_volcano_early("vulcanus-rock-decal-large", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("vulcanus-crack-decal", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("vulcanus-crack-decal-large", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("vulcanus-crack-decal-huge-warm", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("vulcanus-crack-decal-warm", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("sulfur-stain", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("sulfur-stain-small", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("sulfuric-acid-puddle", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("sulfuric-acid-puddle-small", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("crater-small", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("crater-large", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("pumice-relief-decal", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("small-sulfur-rock", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("tiny-sulfur-rock", "optimized-decorative", 0.3)
+terrain.mask_volcano_early("sulfur-rock-cluster", "optimized-decorative", 0.3)
+-- Lava fire stays on volcano terrain
 terrain.mask_vulcano_terrain("vulcanus-lava-fire", "optimized-decorative")
+-- Calcite stains pair with calcite ore wherever it grows (inside or outside
+-- volcanoes), shaped like vanilla Vulcanus: transplants of vanilla's
+-- vulcanus_calcite_stain(_small), identical formulas with only the region
+-- input swapped (vanilla tracks ashlands ore; ours tracks nauvis ore).
+-- eon_calcite is 0..1 nauvis scatter; eon_calcite_region maps it onto the
+-- -1..1 region scale the vanilla formulas expect.
+data:extend({
+  {
+    type = "noise-expression",
+    name = "eon_calcite_region",
+    expression = "eon_calcite * 2 - 1"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_calcite_stain",
+    expression = "min(0.2, min(0.5, 3 * (eon_calcite_region + 0.1)) - 0.8 - 0.6 * vulcanus_decorative_knockout)"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_calcite_stain_small",
+    expression = "min(0.2, min(0.5, 3 * (eon_calcite_region + 0.2)) - 0.4 + 0.6 * vulcanus_decorative_knockout)"
+  },
+})
+data.raw["optimized-decorative"]["calcite-stain"].autoplace.probability_expression = "eon_mask_resource_territory(eon_calcite_stain)"
+data.raw["optimized-decorative"]["calcite-stain-small"].autoplace.probability_expression = "eon_mask_resource_territory(eon_calcite_stain_small)"
 -- END: Mask vulcanus territory on all autoplace settings
 
 -- Ashland trees on volcano terrain (ported from EverythingOnNauvis-Patches)
@@ -1497,6 +1533,13 @@ data:extend({
     name = "eon_mask_vulcano_terrain",
     parameters = {"expression"},
     expression = "if(eon_vulcanus_terrain, expression, -inf)"
+  },
+  {
+    -- Feather band around volcanoes (see terrain.mask_volcano_early).
+    type = "noise-function",
+    name = "eon_mask_volcano_early",
+    parameters = {"expression", "threshold"},
+    expression = "if(eon_mountain_volcano_spots > threshold, expression, -inf)"
   },
   {
     -- Mask off close surroundings of vulcano
