@@ -1,0 +1,13 @@
+{
+    "name": "eon-verify-tungsten",
+    "version": "0.0.1",
+    "title": "EoN tungsten verifier (dev only)",
+    "description": "Charts Nauvis, waits for generation, then reports tungsten patches vs volcanoes.",
+    "author": "morganc",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0.0",
+        "space-age >= 2.0.0",
+        "EverythingOnNauvis-morganc >= 0.1.0"
+    ]
+}

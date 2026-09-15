@@ -1,0 +1,19 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: everythingonnauvis-dev
+    environment:
+      TERM:
+      COLORTERM:
+    # Mount the repo read-only (source is managed on the host or via the agent)
+    volumes:
+      - .:/workspace
+      # - ./.git:/workspace/.git:ro
+      - /home/morgan/factorio:/factorio:ro
+      - /home/morgan/work/space-age-biter-battles:/space-age-biter-battles:ro
+      - s25client-home:/home/ubuntu
+    working_dir: /workspace
+volumes:
+  s25client-home:
