@@ -13,10 +13,11 @@ local SAFE_PLANETARY_REQUIREMENT = 1
 -- Handle the surface conditions of every prototype that has them (buildings, recipes, ...):
 --   setting on : remove them entirely, so anything from any planet works on Nauvis and space platforms.
 --   setting off: keep restrictions against space platforms (see SAFE_PLANETARY_REQUIREMENT).
--- Exception: explosions. Their surface conditions select which "nuke-effects-*" variant applies
--- per planet (nuclear-ground on Nauvis, ammoniacal-ocean on Aquilo, lava on Vulcanus). Removing
--- them would make all variants trigger on Nauvis, letting the atomic bomb create impassable
--- ammoniacal-ocean/lava tiles that disrupt biter pathing.
+-- Exception: explosions. The remaining "nuke-effects-space" variant is gated to pressure 0
+-- (space platforms) by its surface conditions; stripping them would make its tile damage
+-- trigger on Nauvis too. (The Aquilo/Vulcanus nuke variants are deleted outright in
+-- remove-planets.lua since those planets no longer exist, so the bomb always leaves
+-- nuclear ground on Nauvis.)
 for _, type in pairs(data.raw) do
     if type ~= data.raw["explosion"] then
         for _, name in pairs(type) do

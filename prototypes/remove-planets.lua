@@ -87,6 +87,36 @@ data.raw["utility-constants"]["default"].main_menu_simulations.aquilo_send_help 
 data.raw["utility-constants"]["default"].main_menu_simulations.aquilo_starter = nil
 data.raw["utility-constants"]["default"].main_menu_simulations.nauvis_rocket_factory = nil
 
+-- Delete atomic-bomb ground effects for deleted planets (yoinked from
+-- EverythingOnNauvis-Patches, which filters them out of atomic-rocket instead).
+-- Aquilo and Vulcanus no longer exist, so nuke-effects-aquilo (ammoniacal-ocean)
+-- and nuke-effects-vulcanus (lava) can never legally trigger. Deleting them is
+-- better than gating them behind surface conditions: the bomb then always
+-- leaves nuclear ground on Nauvis. nuke-effects-space (space platforms) and
+-- nuke-effects-nauvis are kept.
+local atomic_rocket = data.raw["projectile"] and data.raw["projectile"]["atomic-rocket"]
+if atomic_rocket
+    and atomic_rocket.action
+    and atomic_rocket.action.action_delivery
+    and atomic_rocket.action.action_delivery.target_effects
+then
+    local remove = {
+        ["nuke-effects-vulcanus"] = true,
+        ["nuke-effects-aquilo"] = true,
+    }
+
+    local filtered = {}
+    for _, effect in ipairs(atomic_rocket.action.action_delivery.target_effects) do
+        if not (effect.type == "create-entity" and remove[effect.entity_name]) then
+            table.insert(filtered, effect)
+        end
+    end
+
+    atomic_rocket.action.action_delivery.target_effects = filtered
+end
+data_util.delete_prototype("explosion", "nuke-effects-aquilo")
+data_util.delete_prototype("explosion", "nuke-effects-vulcanus")
+
 -- delete technologies
 data_util.hide_prototype("technology", "planet-discovery-aquilo")
 data_util.hide_prototype("technology", "planet-discovery-fulgora")
