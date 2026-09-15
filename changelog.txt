@@ -9,6 +9,7 @@ Date: 2026-09-XX
     - Fewer chimneys and volcanic rocks spawn on volcano terrain.
     - Gleba natives react to pollution (yoinked from EverythingOnNauvis-Patches, always on since spores are dead without other planets): pentapod units/spawners join attacks on pollution instead of spores, harvest and agricultural towers emit pollution.
     - Atomic bomb ground effects for deleted planets are deleted outright (nuke-effects-aquilo/vulcanus plus their atomic-rocket triggers) instead of being gated behind explosion surface conditions, so the bomb always leaves nuclear ground.
+    - Tungsten ore now grows on volcano flanks, guarded by demolishers (vanilla Vulcanus behavior): smaller, more numerous patches favored by mineable volcano ground, plus a sparse global fallback so maps with tiny/rare volcanoes still have tungsten.
   Bugfixes:
     - Demolisher territory now sits centered and inside volcanoes: it uses a half-chunk-shifted eroded volcano mask (spots > 0.55, water excluded) to compensate chunk-aligned territory sampling, which cut off the top/left and poked outside to the bottom/right. Territories exist only on volcano terrain, so demolishers stay at volcanoes.
     - Nauvis ores (iron, copper, stone, coal, uranium, crude oil, holmium/scrap) no longer spawn inside volcano areas.

@@ -121,7 +121,7 @@ data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["sulfuric_acid_gey
 
 -- Mask resources from ammonia ocean
 terrain.mask_resource_territory_allow_volcano("calcite", "resource")
-terrain.mask_resource_territory_allow_volcano("tungsten-ore", "resource")
+-- Tungsten is wired to volcano flanks below (not masked here).
 
 -- START: Fix Resource spawning
 data.raw.resource["calcite"].autoplace.has_starting_area_placement = false -- Does nothing but noise expression vulcanus_starting_calcite removes starter spot
@@ -133,6 +133,75 @@ data.raw["noise-expression"]["vulcanus_sulfuric_acid_geyser_probability"].expres
 data.raw["noise-expression"]["vulcanus_starting_sulfur"].expression = "-inf"
 
 data.raw.resource["tungsten-ore"].autoplace.has_starting_area_placement = false -- Does nothing but noise expression vulcanus_starting_tungsten removes starter spot
-data.raw["noise-expression"]["vulcanus_tungsten_ore_probability"].expression = "eon_mask_off_ammonia_ocean((control:tungsten_ore:size > 0) * (1000 * ((0.7 + vulcanus_tungsten_ore_region) * random_penalty_between(0.9, 1, 1) - 1)))"
 data.raw["noise-expression"]["vulcanus_starting_tungsten"].expression = "-inf"
+
+-- Tungsten grows on volcano flanks, guarded by demolishers (vanilla Vulcanus
+-- behavior). Spots are placed by vanilla-style spot noise favored by mineable
+-- volcano ground (volcano terrain minus lava core and water, unshifted so it
+-- aligns with tiles). Patches are smaller and more numerous than vanilla
+-- (half size, more candidates) so they fit the narrow flanks; a sparse global
+-- fallback (nauvis-style scatter) guarantees tungsten survives even on maps
+-- where volcanoes are tiny or turned down, so it can never be masked out
+-- entirely.
+data:extend({
+  {
+    type = "noise-expression",
+    name = "eon_volcano_lava_core",
+    expression = "max(eon_lava_mountains_range, eon_lava_hot_mountains_range) > 0"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_tungsten_volcano_favorability",
+    expression = "if(eon_vulcanus_terrain, if(eon_volcano_lava_core, 0, if(eon_updated_water <= 0, if(eon_updated_deepwater <= 0, 1, 0), 0)), 0)"
+  },
+  {
+    -- Clone of vulcanus_place_metal_spots with candidate density decoupled
+    -- from favorability: vanilla scales density by favor_biome, which works
+    -- for continent-sized basalt fields but starves thin volcano flanks
+    -- (region-average density rounds to ~zero candidates). Constant density
+    -- places candidates everywhere; the favorability gate still keeps only
+    -- flank spots, and the global fallback stays separate.
+    type = "noise-function",
+    name = "eon_place_tungsten_spots",
+    parameters = {"seed", "count", "offset", "size", "freq", "favor_biome"},
+    expression = "min(clamp(-1 + 4 * favor_biome, -1, 1), eon_tungsten_spot_noise - vulcanus_hairline_cracks / 30000)",
+    local_expressions =
+    {
+      eon_tungsten_spot_noise = "vulcanus_spot_noise{seed = seed,\z
+                                                  count = count,\z
+                                                  spacing = vulcanus_ore_spacing,\z
+                                                  span = 3,\z
+                                                  offset = offset,\z
+                                                  region_size = 500 + 500 / freq,\z
+                                                  density = 4,\z
+                                                  quantity = size * size,\z
+                                                  radius = size,\z
+                                                  favorability = favor_biome > 0.9}"
+    }
+  },
+  {
+    type = "noise-expression",
+    name = "eon_tungsten_volcano_region",
+    expression = "max(vulcanus_starting_tungsten, min(1 - vulcanus_starting_circle, eon_place_tungsten_spots(789, 24, 2, vulcanus_tungsten_ore_size * min(1.2, vulcanus_ore_dist) * 12, control:tungsten_ore:frequency, eon_tungsten_volcano_favorability)))"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_tungsten_fallback_region",
+    expression = "0.45 * eon_tungsten_ore"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_tungsten_ore_region",
+    expression = "max(eon_tungsten_volcano_region, eon_tungsten_fallback_region)"
+  },
+})
+-- NOTE: this replaces the dead vulcanus_tungsten_ore_probability override that
+-- nothing referenced (tungsten spawned as plain Nauvis scatter). The vanilla
+-- vulcanus expression is left untouched.
+-- Richness must derive from the SAME region as probability (vanilla
+-- Vulcanus does this too): entities only spawn where richness > 0, so the
+-- old nauvis-style richness (default-patches pattern) silently vetoed every
+-- volcano patch. Mirror vanilla vulcanus richness with our region.
+data.raw.resource["tungsten-ore"].autoplace.richness_expression = "eon_tungsten_ore_region * random_penalty_between(0.9, 1, 1) * 10000 * control:tungsten_ore:richness / vulcanus_tungsten_ore_size"
+data.raw.resource["tungsten-ore"].autoplace.probability_expression = "eon_mask_resource_territory(eon_mask_off_ammonia_ocean((control:tungsten_ore:size > 0) * (1000 * ((0.7 + eon_tungsten_ore_region) * random_penalty_between(0.9, 1, 1) - 1))))"
 -- END: Fix Resource spawning
