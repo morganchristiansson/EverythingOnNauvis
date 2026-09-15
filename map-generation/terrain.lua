@@ -127,7 +127,7 @@ data.raw.tile["deepwater"].autoplace.probability_expression = "eon_updated_deepw
 -- START: Mask nauvis territory on all autoplace settings
 -- Remove nauvis trees from eon_vulcanus_terrain
 -- data.raw["noise-expression"]["trees_forest_path_cutout"].expression = "mask_off_vulcano_terrain(min(nauvis_bridge_paths, nauvis_hills_paths, forest_paths))"
-data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "max(eon_mask_nauvis_deep(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 10), eon_mask_off_vulcano_terrain(eon_mask_nauvis_aquilo_fringe(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 1.5)), if(eon_mountain_volcano_spots > 0.2, 4 * eon_mask_off_ammonia_ocean(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1) * clamp((0.6 - eon_mountain_volcano_spots) / 0.4, 0, 1), -inf))"
+data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "max(eon_mask_nauvis_deep(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 10), eon_mask_off_vulcano_terrain(eon_mask_nauvis_aquilo_fringe(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 1.5)), if(eon_mountain_volcano_spots > 0.2, eon_mask_off_aquilo_territory(4 * eon_mask_off_ammonia_ocean(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1) * clamp((0.6 - eon_mountain_volcano_spots) / 0.4, 0, 1)), -inf))"
 
 -- Dead trees only grow on nauvis territory (same fix as EverythingOnNauvis-Patches).
 -- Masked at expression level like trees_forest_path_cutout_faded: tree_dead_grey_trunk
@@ -325,11 +325,11 @@ terrain.mask_aquilo_land_early("snow-drift-decal", "optimized-decorative", 1.5)
 terrain.mask_aquilo_land_early("lithium-iceberg-huge", "simple-entity", 1.5)
 terrain.mask_aquilo_land_early("lithium-iceberg-big", "simple-entity", 1.5)
 
--- Aquilo decoratives feather onto volcano outer rims too, mirroring the Nauvis
--- rim loop: band-gated on spots 0.2-0.55 with depth falloff, so the volcano
--- edge on the aquilo side reads as progression instead of a clean volcanic
--- wall. Gated to the aquilo feather zone (reach 3) so ice and snow decals
--- never show up on southern (Nauvis/Gleba-side) volcanoes.
+-- Aquilo decoratives feather onto volcano rims, but only on the aquilo side:
+-- gated by the same territory mask the tiles use (eon_aquilo_mask), so ice and
+-- bergs stay off volcano rims everywhere south of the boundary (Gleba, Vulcanus,
+-- Nauvis mid-band) and ornament only northern rims. Band-gated on spots 0.2-0.55
+-- with depth falloff, so the volcano edge on the aquilo side reads as progression.
 for _, name in pairs({
   "lithium-iceberg-medium", "lithium-iceberg-small", "lithium-iceberg-tiny",
   "floating-iceberg-large", "floating-iceberg-small",
@@ -337,9 +337,8 @@ for _, name in pairs({
 }) do
   local current = data.raw["optimized-decorative"][name].autoplace.probability_expression
   local snap = data_util.generate_eon_name(name)
-  local aquilo_gate = "if(eon_aquilo_base(eon_aquilo_max_elevation + 3, 100) > 0, 1, -inf)"
   data.raw["optimized-decorative"][name].autoplace.probability_expression =
-      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), if(eon_mountain_volcano_spots > 0.2, 4 * " .. aquilo_gate .. " * " .. snap .. " * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1), -inf)))"
+      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), if(eon_mountain_volcano_spots > 0.2, 4 * eon_mask_aquilo_territory(" .. snap .. " * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1)), -inf)))"
 end
 -- END: Mask aquilo territory on all autoplace settings
 
@@ -1754,7 +1753,10 @@ for _, entry in pairs(eon_nauvis_rim_decoratives) do
   -- No aquilo guard on the rim: volcanoes outrank Aquilo, so northern rims
   -- would otherwise go bald (aquilo blocks nauvis, volcano blocks aquilo).
   -- Band widened slightly (0.2-0.55) after playtest showed bare rims.
-  local rim_allow = "if(eon_mountain_volcano_spots > 0.2, 4 * eon_mask_off_ammonia_ocean(" .. snap .. ") * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1), -inf)"
+  -- off-aquilo: the rim band stays `decoratives fade onto the volcano`, but
+  -- only on the nauvis/gleba side; the aquilo flank stays volcanic (the aquilo
+  -- side is covered by the aquilo-deco rim allowance instead).
+  local rim_allow = "if(eon_mountain_volcano_spots > 0.2, eon_mask_off_aquilo_territory(4 * eon_mask_off_ammonia_ocean(" .. snap .. ") * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1)), -inf)"
   data.raw[entry[2]][entry[1]].autoplace.probability_expression =
       "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), " .. rim_allow .. ", " .. fringe .. "))"
 end
@@ -1770,7 +1772,7 @@ for _, name in pairs({
   local current = data.raw["optimized-decorative"][name].autoplace.probability_expression
   local snap = data_util.generate_eon_name(name)
   data.raw["optimized-decorative"][name].autoplace.probability_expression =
-      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), if(eon_mountain_volcano_spots > 0.2, 4 * eon_mask_off_ammonia_ocean(" .. snap .. ") * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1), -inf)))"
+      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), if(eon_mountain_volcano_spots > 0.2, eon_mask_off_aquilo_territory(4 * eon_mask_off_ammonia_ocean(" .. snap .. ") * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1)), -inf)))"
 end
 
 return terrain
