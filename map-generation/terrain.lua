@@ -1286,10 +1286,16 @@ terrain.mask_vulcano_coverage("volcanic-ash-cracks", "tile")
 
 data.raw.tile["volcanic-folds"].autoplace.probability_expression = "eon_updated_volcanic_folds" -- Removes all lava spots except vulkane
 data.raw.tile["volcanic-folds-flat"].autoplace.probability_expression = "eon_updated_volcanic_folds_flat" -- Adds big ring around vulcano
-data.raw.tile["lava"].autoplace.probability_expression = "eon_lava_mountains_range"
-data.raw.tile["lava-hot"].autoplace.probability_expression = "eon_lava_hot_mountains_range"
+-- Lava was the only volcano feature without a terrain mask, relying on vanilla
+-- biome math that inverts on Nauvis (lava lakes where the mountains biome
+-- dips, with no folds around them -- including on Aquilo ice). Masked to
+-- volcano terrain like everything else; legitimate cores are always deep
+-- inside terrain, so they are unaffected. This also covers Aquilo: terrain
+-- is never ice or ocean.
+data.raw.tile["lava"].autoplace.probability_expression = "eon_mask_vulcano_terrain(eon_lava_mountains_range)"
+data.raw.tile["lava-hot"].autoplace.probability_expression = "eon_mask_vulcano_terrain(eon_lava_hot_mountains_range)"
 
-data.raw.cliff["crater-cliff"].autoplace.probability_expression = "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(eon_lava_hot_mountains_range))"
+data.raw.cliff["crater-cliff"].autoplace.probability_expression = "eon_mask_vulcano_terrain(eon_lava_hot_mountains_range)"
 
 -- Cliff contours ring volcanoes like space-age (see eon_cliff_elevation): the engine places
 -- cliff segments along elevation contours with native orientations and connections.
