@@ -180,34 +180,15 @@ data:extend({
     expression = "if(eon_vulcano_coverage, if(eon_volcano_lava_core, 0, if(eon_updated_water <= 0, if(eon_updated_deepwater <= 0, 1, 0), 0)), 0)"
   },
   {
-    -- Clone of vulcanus_place_metal_spots with candidate density decoupled
-    -- from favorability: vanilla scales density by favor_biome, which works
-    -- for continent-sized basalt fields but starves thin volcano flanks
-    -- (region-average density rounds to ~zero candidates). Constant density
-    -- places candidates everywhere; the favorability gate still keeps only
-    -- flank spots.
-    type = "noise-function",
-    name = "eon_place_tungsten_spots",
-    parameters = {"seed", "count", "offset", "size", "freq", "favor_biome"},
-    expression = "min(clamp(-1 + 4 * favor_biome, -1, 1), eon_tungsten_spot_noise - vulcanus_hairline_cracks / 30000)",
-    local_expressions =
-    {
-      eon_tungsten_spot_noise = "vulcanus_spot_noise{seed = seed,\z
-                                                  count = count,\z
-                                                  spacing = vulcanus_ore_spacing,\z
-                                                  span = 3,\z
-                                                  offset = offset,\z
-                                                  region_size = 500 + 500 / freq,\z
-                                                  density = 4,\z
-                                                  quantity = size * size,\z
-                                                  radius = size,\z
-                                                  favorability = favor_biome > 0.9}"
-    }
-  },
-  {
+    -- Vanilla vulcanus_place_metal_spots directly: max() floors the favorability
+    -- input at 0.25 so candidate density never starves thin volcano flanks
+    -- (vanilla scales density by favor_biome, tuned for continent-sized basalt
+    -- fields). The favorability gate (favor > 0.9) is unaffected by the floor
+    -- (0.25 never passes it), so only flank spots survive, exactly as before --
+    -- with no forked spot function to maintain.
     type = "noise-expression",
     name = "eon_tungsten_volcano_region",
-    expression = "max(vulcanus_starting_tungsten, min(1 - vulcanus_starting_circle, eon_place_tungsten_spots(789, 24, 2, vulcanus_tungsten_ore_size * (1 + 0.5 * min(distance / (1500 * eon_volcanism), 1)) * 12, control:tungsten_ore:frequency, eon_tungsten_volcano_favorability)))"
+    expression = "max(vulcanus_starting_tungsten, min(1 - vulcanus_starting_circle, vulcanus_place_metal_spots(789, 24, 2, vulcanus_tungsten_ore_size * (1 + 0.5 * min(distance / (1500 * eon_volcanism), 1)) * 12, control:tungsten_ore:frequency, max(eon_tungsten_volcano_favorability, 0.25))))"
   },
   {
     type = "noise-expression",
