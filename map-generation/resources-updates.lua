@@ -139,10 +139,10 @@ data.raw["noise-expression"]["vulcanus_starting_tungsten"].expression = "-inf"
 -- behavior). Spots are placed by vanilla-style spot noise favored by mineable
 -- volcano ground (volcano terrain minus lava core and water, unshifted so it
 -- aligns with tiles). Patches are smaller and more numerous than vanilla
--- (half size, more candidates) so they fit the narrow flanks; a sparse global
--- fallback (nauvis-style scatter) guarantees tungsten survives even on maps
--- where volcanoes are tiny or turned down, so it can never be masked out
--- entirely.
+-- (half size, more candidates) so they fit the narrow flanks. Spot blobs
+-- centered near flank edges may spill onto neighboring tiles; that is fine.
+-- There is no fallback: volcanism cannot be disabled, so every map has
+-- volcanoes and therefore tungsten.
 data:extend({
   {
     type = "noise-expression",
@@ -160,7 +160,7 @@ data:extend({
     -- for continent-sized basalt fields but starves thin volcano flanks
     -- (region-average density rounds to ~zero candidates). Constant density
     -- places candidates everywhere; the favorability gate still keeps only
-    -- flank spots, and the global fallback stays separate.
+    -- flank spots.
     type = "noise-function",
     name = "eon_place_tungsten_spots",
     parameters = {"seed", "count", "offset", "size", "freq", "favor_biome"},
@@ -186,13 +186,8 @@ data:extend({
   },
   {
     type = "noise-expression",
-    name = "eon_tungsten_fallback_region",
-    expression = "0.45 * eon_tungsten_ore"
-  },
-  {
-    type = "noise-expression",
     name = "eon_tungsten_ore_region",
-    expression = "max(eon_tungsten_volcano_region, eon_tungsten_fallback_region)"
+    expression = "eon_tungsten_volcano_region"
   },
 })
 -- NOTE: this replaces the dead vulcanus_tungsten_ore_probability override that
