@@ -24,6 +24,12 @@ function terrain.mask_resource_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_off_vulcano_terrain(eon_mask_resource_territory(" .. data_util.generate_eon_name(decorative) .. "))"
 end
 
+-- Same as above but also off Gleba territory (vanilla Gleba has none of the
+-- Nauvis ores; stone is handled separately with vanilla Gleba stone instead).
+function terrain.mask_resource_territory_off_gleba(decorative, decorative_type)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_off_gleba_territory(eon_mask_off_vulcano_terrain(eon_mask_resource_territory(" .. data_util.generate_eon_name(decorative) .. ")))"
+end
+
 function terrain.mask_aquilo_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_aquilo_territory(" .. data_util.generate_eon_name(decorative) .. ")"
 end

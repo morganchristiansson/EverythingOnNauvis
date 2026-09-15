@@ -30,13 +30,13 @@ end
 --------------------------------------------------------------------------------
 
 -- Remove resources spawning on ammonia ocean
--- Nauvis resources stay off volcano terrain entirely.
-terrain.mask_resource_territory("iron-ore", "resource")
-terrain.mask_resource_territory("copper-ore", "resource")
-terrain.mask_resource_territory("stone", "resource")
-terrain.mask_resource_territory("coal", "resource")
-terrain.mask_resource_territory("uranium-ore", "resource")
-terrain.mask_resource_territory("crude-oil", "resource")
+-- Nauvis resources stay off volcano terrain and off Gleba territory entirely
+-- (vanilla Gleba has none of these; stone is handled separately below).
+terrain.mask_resource_territory_off_gleba("iron-ore", "resource")
+terrain.mask_resource_territory_off_gleba("copper-ore", "resource")
+terrain.mask_resource_territory_off_gleba("coal", "resource")
+terrain.mask_resource_territory_off_gleba("uranium-ore", "resource")
+terrain.mask_resource_territory_off_gleba("crude-oil", "resource")
 
 --------------------------------------------------------------------------------
 -- MARK: Remove Aquilo resources to from Aquilo -- Dunno why i have to do this only for this planet...
@@ -53,18 +53,41 @@ if holmium_ore then
   -- Add holmium as ore
   data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["holmium-ore"] = {}
   data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["holmium-ore"] = {}
-  terrain.mask_resource_territory("holmium-ore", "resource")
+  terrain.mask_resource_territory_off_gleba("holmium-ore", "resource")
 else
   -- Keep scrap
   data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["scrap"] = {}
   data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["scrap"] = {}
   data.raw.resource["scrap"].autoplace.has_starting_area_placement = false  -- no scrap in the Nauvis starting area
-  terrain.mask_resource_territory("scrap", "resource")
+  terrain.mask_resource_territory_off_gleba("scrap", "resource")
 end
 
 --------------------------------------------------------------------------------
 -- MARK: Gleba
 --------------------------------------------------------------------------------
+
+-- Vanilla Gleba has no iron-ore/copper-ore/coal/uranium-ore/crude-oil/scrap
+-- (metals come from stromatolites); stone exists but small and sparse via the
+-- gleba_stone control, which this mod deletes with the other planets.
+-- Duplicate those expressions driven by the regular stone control instead, so
+-- southern stone keeps vanilla Gleba's pattern at default settings with no
+-- extra map-gen slider. Nauvis stone stays off Gleba, Gleba stone on it.
+local eon_gleba_stone_richness = table.deepcopy(data.raw["noise-expression"]["gleba_stone_richness"])
+eon_gleba_stone_richness.name = "eon_gleba_stone_richness"
+eon_gleba_stone_richness.local_expressions.richness = "control:stone:richness"
+eon_gleba_stone_richness.local_expressions.frequency = "control:stone:frequency"
+eon_gleba_stone_richness.local_expressions.size = "control:stone:size"
+data:extend({
+  eon_gleba_stone_richness,
+  {
+    type = "noise-expression",
+    name = "eon_gleba_stone_probability",
+    expression = "(control:stone:size > 0) * (eon_gleba_stone_richness > 1)"
+  },
+})
+local nauvis_stone_richness = data.raw.resource["stone"].autoplace.richness_expression
+data.raw.resource["stone"].autoplace.probability_expression = "if(eon_gleba_mask, eon_gleba_stone_probability, eon_mask_off_vulcano_terrain(eon_mask_resource_territory(eon_stone)))"
+data.raw.resource["stone"].autoplace.richness_expression = "if(eon_gleba_mask, eon_gleba_stone_richness, (" .. nauvis_stone_richness .. "))"
 
 data.raw["autoplace-control"]["gleba_plants"].localised_description = {"autoplace-control-names.gleba_plants_description"}
 
