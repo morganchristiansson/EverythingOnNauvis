@@ -21,6 +21,8 @@ Date: 2026-09-XX
     - Aquilo keeps only crude oil, lithium brine and fluorine vents: all other ores stay off aquilo land and ammonia ocean.
     - Tungsten is leaner (richness base halved-ish) with frequency-normalized distance gradients; flaming ashland trees stay deep inside volcanoes; lava fills big-volcano centers (vanilla upper bound).
     - Fish only spawn in Nauvis water (yoinked from EverythingOnNauvis-Patches, extended to Gleba): no fish in lava, ammonia ocean, or Gleba wetlands/lakes.
+    - Volcano terrain beats Aquilo on the whole rim — aquilo tiles are guarded by the full volcano mask (coverage + folds ring + soft-edged rim) instead of a spot threshold, and snow-crests/lumpy/patchy are guarded too.
+    - Aquilo decoratives feather onto volcano outer rims on the aquilo side (band-gated with depth falloff, like the Nauvis rim decoratives), so icy rims read as progression instead of a clean volcanic wall.
   Bugfixes:
     - Demolisher territory now sits centered and inside volcanoes: it uses a half-chunk-shifted eroded volcano mask (spots > 0.55, water excluded) to compensate chunk-aligned territory sampling, which cut off the top/left and poked outside to the bottom/right. Territories exist only on volcano terrain, so demolishers stay at volcanoes.
     - Nauvis ores (iron, copper, stone, coal, uranium, crude oil, holmium/scrap) no longer spawn inside volcano areas.

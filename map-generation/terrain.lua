@@ -324,6 +324,23 @@ terrain.mask_aquilo_land_early("snow-drift-decal", "optimized-decorative", 1.5)
 -- mask aquilo entities (never onto volcanoes: the land_early guard handles it)
 terrain.mask_aquilo_land_early("lithium-iceberg-huge", "simple-entity", 1.5)
 terrain.mask_aquilo_land_early("lithium-iceberg-big", "simple-entity", 1.5)
+
+-- Aquilo decoratives feather onto volcano outer rims too, mirroring the Nauvis
+-- rim loop: band-gated on spots 0.2-0.55 with depth falloff, so the volcano
+-- edge on the aquilo side reads as progression instead of a clean volcanic
+-- wall. Gated to the aquilo feather zone (reach 3) so ice and snow decals
+-- never show up on southern (Nauvis/Gleba-side) volcanoes.
+for _, name in pairs({
+  "lithium-iceberg-medium", "lithium-iceberg-small", "lithium-iceberg-tiny",
+  "floating-iceberg-large", "floating-iceberg-small",
+  "aqulio-ice-decal-blue", "aqulio-snowy-decal", "snow-drift-decal",
+}) do
+  local current = data.raw["optimized-decorative"][name].autoplace.probability_expression
+  local snap = data_util.generate_eon_name(name)
+  local aquilo_gate = "if(eon_aquilo_base(eon_aquilo_max_elevation + 3, 100) > 0, 1, -inf)"
+  data.raw["optimized-decorative"][name].autoplace.probability_expression =
+      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), if(eon_mountain_volcano_spots > 0.2, 4 * " .. aquilo_gate .. " * " .. snap .. " * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1), -inf)))"
+end
 -- END: Mask aquilo territory on all autoplace settings
 
 -- START: Update noise expressions
