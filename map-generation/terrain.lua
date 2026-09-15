@@ -302,11 +302,10 @@ data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["l
 terrain.mask_aquilo_territory("lithium-brine", "resource")
 terrain.mask_aquilo_territory("fluorine-vent", "resource")
 
--- mask aquilo tiles
+-- mask aquilo tiles (all guarded off volcanoes further down, in
+-- "Update noise expressions": snow-flat and the ice/ammonia variants use the
+-- custom land/ocean fields there, the snow variants their vanilla snapshots)
 -- terrain.mask_aquilo_territory("snow-flat", "tile")
-terrain.mask_aquilo_territory("snow-crests", "tile")
-terrain.mask_aquilo_territory("snow-lumpy", "tile")
-terrain.mask_aquilo_territory("snow-patchy", "tile")
 -- terrain.mask_aquilo_territory("ice-rough", "tile")
 -- terrain.mask_aquilo_territory("ice-smooth", "tile")
 -- terrain.mask_aquilo_territory("brash-ice", "tile")
@@ -328,20 +327,21 @@ terrain.mask_aquilo_land_early("lithium-iceberg-big", "simple-entity", 1.5)
 -- END: Mask aquilo territory on all autoplace settings
 
 -- START: Update noise expressions
--- Volcano buffer: no ice or ammonia within volcano influence (spots > 0.12),
--- so demolisher patrols never step off volcanic ground. Outer volcanoes beat
--- Aquilo, full stop.
-local eon_aquilo_volcano_buffer = "if(eon_mountain_volcano_spots > 0.12, -inf, "
-data.raw.tile["ammoniacal-ocean"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_ammonia + 0.01 * (aux - 0.5)))"
-data.raw.tile["ammoniacal-ocean-2"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_ammonia - 0.01 * (aux - 0.5)))"
+-- Volcano guard: no ice/snow/ammonia on ANY volcanic ground. Guards the whole
+-- volcano mask (coverage + folds ring + their soft-edged rims) instead of a
+-- spot threshold, so the outermost rim — where volcanic-folds-flat goes faint
+-- but is still positive — stays volcanic too. Volcano beats Aquilo, full stop.
+local eon_aquilo_volcano_guard = "if(eon_vulcanus_terrain, -inf, "
+data.raw.tile["ammoniacal-ocean"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_aquilo_ammonia + 0.01 * (aux - 0.5)))"
+data.raw.tile["ammoniacal-ocean-2"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_aquilo_ammonia - 0.01 * (aux - 0.5)))"
 
-data.raw.tile["snow-flat"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_land))"
--- data.raw.tile["snow-crests"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_land)"
--- data.raw.tile["snow-lumpy"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_land)"
--- data.raw.tile["snow-patchy"].autoplace.probability_expression = "eon_mask_aquilo_territory(eon_aquilo_land)"
-data.raw.tile["ice-rough"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 1.5, 200)))"
-data.raw.tile["ice-smooth"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 1, 200)))"
-data.raw.tile["brash-ice"].autoplace.probability_expression = eon_aquilo_volcano_buffer .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 0.5, 200)))"
+data.raw.tile["snow-flat"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_aquilo_land))"
+data.raw.tile["snow-crests"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_snow_crests))"
+data.raw.tile["snow-lumpy"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_snow_lumpy))"
+data.raw.tile["snow-patchy"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_snow_patchy))"
+data.raw.tile["ice-rough"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 1.5, 200)))"
+data.raw.tile["ice-smooth"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 1, 200)))"
+data.raw.tile["brash-ice"].autoplace.probability_expression = eon_aquilo_volcano_guard .. "eon_mask_aquilo_territory(eon_aquilo_base(eon_aquilo_ammonia_depth + 0.5, 200)))"
 -- END: Update noise expressions
 
 data:extend({
