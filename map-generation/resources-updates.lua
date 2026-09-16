@@ -165,9 +165,11 @@ data.raw["noise-expression"]["vulcanus_starting_tungsten"].expression = "-inf"
 -- patches stay inside demolisher territory). Ore never places on lava tiles
 -- anyway, so no lava exclusion is needed. Patches are smaller and more
 -- numerous than vanilla (half size, more candidates) so they fit the flanks.
--- Spot blobs centered near edges may spill onto neighboring tiles; that is
--- fine. There is no fallback: volcanism cannot be disabled, so every map
--- has volcanoes and therefore tungsten.
+-- Spot blobs centered near edges can spill onto neighboring tiles (flat skirt
+-- and plain ground); the probability gate below clips that spill to the flank
+-- tiles themselves, so no tungsten ever renders outside volcano ground (and
+-- outside demolisher territory). There is no fallback: volcanism cannot be
+-- disabled, so every map has volcanoes and therefore tungsten.
 data:extend({
   {
     type = "noise-expression",
@@ -177,7 +179,12 @@ data:extend({
   {
     type = "noise-expression",
     name = "eon_tungsten_volcano_favorability",
-    expression = "if(eon_vulcano_coverage, if(eon_volcano_lava_core, 0, if(eon_updated_water <= 0, if(eon_updated_deepwater <= 0, 1, 0), 0)), 0)"
+    -- Favor only the flank band pressed right against the lava heart (spots > 0.68,
+    -- just under the lava edge, outside the lava core): vanilla Vulcanus grows tungsten
+    -- in lava-adjacent ground. The outer folds ring is rim fringe that chunk
+    -- quantization can wobble in/out of territory. The inward clip shrinks yield, so
+    -- frequency is boosted separately in eon_tungsten_volcano_region.
+    expression = "if(eon_vulcano_coverage * (eon_mountain_volcano_spots > 0.68), if(eon_volcano_lava_core, 0, if(eon_updated_water <= 0, if(eon_updated_deepwater <= 0, 1, 0), 0)), 0)"
   },
   {
     -- Vanilla vulcanus_place_metal_spots directly: max() floors the favorability
@@ -188,7 +195,7 @@ data:extend({
     -- with no forked spot function to maintain.
     type = "noise-expression",
     name = "eon_tungsten_volcano_region",
-    expression = "max(vulcanus_starting_tungsten, min(1 - vulcanus_starting_circle, vulcanus_place_metal_spots(789, 24, 2, vulcanus_tungsten_ore_size * (1 + 0.5 * min(distance / (1500 * eon_volcanism), 1)) * 12, control:tungsten_ore:frequency, max(eon_tungsten_volcano_favorability, 0.25))))"
+    expression = "max(vulcanus_starting_tungsten, min(1 - vulcanus_starting_circle, vulcanus_place_metal_spots(789, 24, 2, vulcanus_tungsten_ore_size * (1 + 0.5 * min(distance / (1500 * eon_volcanism), 1)) * 12, control:tungsten_ore:frequency * 3.0, max(eon_tungsten_volcano_favorability, 0.25))))"
   },
   {
     type = "noise-expression",
@@ -207,5 +214,5 @@ data:extend({
 -- the old formula, far volcanoes pay out more per tile; richness stays
 -- region-wide since probability gates.
 data.raw.resource["tungsten-ore"].autoplace.richness_expression = "eon_tungsten_ore_region * random_penalty_between(0.9, 1, 1) * 3500 * control:tungsten_ore:richness * (1 + min(distance / (1500 * eon_volcanism), 1)) / vulcanus_tungsten_ore_size"
-data.raw.resource["tungsten-ore"].autoplace.probability_expression = "eon_mask_off_aquilo_territory(eon_mask_resource_territory(eon_mask_off_ammonia_ocean((control:tungsten_ore:size > 0) * (1000 * ((0.7 + eon_tungsten_ore_region) * random_penalty_between(0.9, 1, 1) - 1)))))"
+data.raw.resource["tungsten-ore"].autoplace.probability_expression = "eon_mask_off_aquilo_territory(eon_mask_resource_territory(eon_mask_off_ammonia_ocean(if((eon_vulcanus_core_at16 > 0) * (eon_volcano_lava_core <= 0), (control:tungsten_ore:size > 0) * (1000 * ((0.7 + eon_tungsten_ore_region) * random_penalty_between(0.9, 1, 1) - 1)), -inf))))"
 -- END: Fix Resource spawning

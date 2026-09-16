@@ -1479,11 +1479,12 @@ data:extend({
     expression = "multioctave_noise{x = x + x_offset, y = y + y_offset, seed0 = map_seed, seed1 = seed1 + 12243, octaves = octaves, persistence = 0.6, input_scale = 1 / 50 / scale, output_scale = magnitude}"
   },
   {
-    -- Volcano spots evaluated at an offset position, so tiles and territory share one
-    -- definition: (0, 0) for tiles, (16, 16) to compensate chunk-aligned territory sampling.
-    -- Two spot systems (small/dense + big/sparse, different seeds) merge into varied
-    -- volcano sizes; quantity stays radius-squared so field peaks behave the same
-    -- at every size.
+    -- Volcano spots evaluated at an offset position. Tiles use (0, 0); the
+    -- territory-adjacent fields below sample the same spot field 16px up-left so
+    -- the roaming spots look the same on both grids. Two spot systems
+    -- (small/dense + big/sparse, different seeds) merge into varied volcano
+    -- sizes; quantity stays radius-squared so field peaks behave the same at
+    -- every size.
     type = "noise-function",
     name = "eon_volcano_spots_at",
     parameters = {"x_offset", "y_offset", "seed", "spacing_mult", "size_mult"},
@@ -1523,12 +1524,13 @@ data:extend({
     expression = "max(eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 1, spacing_mult = 1, size_mult = 0.75}, eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25})"
   },
   {
-    -- Territory sampling is chunk-aligned (biased down/right half a chunk); the 16px
-    -- offset above moves the mask up-left to compensate (see eon_volcano_spots_at).
-    -- No spawn gate here either: with no spots near spawn there is no territory
-    -- there, and rims may legitimately overlap the gate zone.
-    -- Small and big systems are named separately (not just merged) so the
-    -- demolisher size logic can tell small-only ground apart from big ground.
+    -- Same spot field as the tiles, sampled 16px up-left so size-cap areas stay
+    -- aligned with the tile rendering. No spawn gate here either: with no spots
+    -- near spawn there is no territory there, and rims may legitimately overlap
+    -- the gate zone. Small and big systems are named separately (not just merged)
+    -- so the demolisher size logic can tell small-only ground apart from big
+    -- ground. These fields feed only demolisher size caps -- territory MEMBERSHIP
+    -- comes from the tile-truth eon_vulcanus_terrain mask (see eon_demolisher_territory).
     type = "noise-expression",
     name = "eon_terr_volcano_small",
     expression = "eon_volcano_spots_at{x_offset = 16, y_offset = 16, seed = 1, spacing_mult = 1, size_mult = 0.75}"
@@ -1552,16 +1554,17 @@ data:extend({
     expression = "if(eon_terr_volcano_small > 0.5, if(eon_terr_volcano_big > 0.5, 4, 1), 4)"
   },
   {
-    -- Eroded volcano mask for demolisher territory: territory is sampled per 32x32 chunk
-    -- and includes any chunk whose corner touches the mask, so the mask is eroded by about
-    -- one chunk to keep territory visually inside the volcano while still covering all lava.
-    -- Nauvis water/deepwater, ammonia ocean and Gleba water are excluded so territory never
-    -- spills onto water at coastal volcanoes. The Gleba-water signal is itself masked off
-    -- volcano terrain, so ocean volcanoes keep their territory on the lava. Evaluated on
-    -- the shifted field above.
+    -- Territory follows the volcano CORE plus the inner half of the folds-flat skirt
+    -- (eon_demolisher_mask_at16: tile-truth, never off-volcano), evaluated at the
+    -- engine's per-chunk sample point. The probe (see AGENTS.md) showed the territory
+    -- index expression is sampled at ONE fixed world-aligned corner per 32x32 chunk,
+    -- claimed iff expression >= 0 there. The 16px field shift cancels the half-chunk
+    -- SE bias the corner anchoring introduces (measured +15/+16px un-shifted); the
+    -- outer half of the skirt stays a buffer so patrol anchors remain inside volcano
+    -- ground.
     type = "noise-expression",
     name = "eon_demolisher_territory",
-    expression = "(eon_terr_volcano_spots > 0.5) * (eon_updated_water <= 0) * (eon_updated_deepwater <= 0) * (eon_aquilo_ammonia <= -1) * (eon_mask_off_vulcano_terrain(eon_wetland_blue_slime) <= 0)"
+    expression = "eon_demolisher_mask_at16"
   },
   {
     -- Seed: 3329457809 south east
@@ -1616,6 +1619,61 @@ data:extend({
     type = "noise-expression",
     name = "eon_vulcanus_terrain",
     expression = "max(eon_vulcano_coverage, eon_updated_volcanic_folds_flat) > 0"
+  },
+  -- Territory mask chain: the volcano CORE signals (folds + lava rings) evaluated on
+  -- the 16px-shifted spot field (eon_terr_volcano_spots = eon_volcano_spots_at{16,16}).
+  -- The engine samples the territory index at each chunk's top-left corner, so an
+  -- un-shifted mask makes the claimed union sit ~half a chunk SE of the terrain
+  -- (measured +15/+16px on seed 12345); shifting the underlying field 16px NW recenters
+  -- it. Using the core signals (not the outer folds-flat skirt) leaves the rim as a
+  -- buffer: rim/water fringe chunks whose corner only just samples interior no longer
+  -- get claimed, and demolisher patrol anchors stay well inside volcano ground.
+  {
+    type = "noise-expression",
+    name = "eon_mountain_lava_spots_at16",
+    expression = "clamp(vulcanus_threshold(eon_terr_volcano_spots * 1.95 - 0.95, 0.4 * vulcanus_threshold(clamp(vulcanus_plasma(17453, 0.2, 0.4, 10, 20) / 20, 0, 1), 3.5)), 0, 1)"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_lava_mountains_range_at16",
+    expression = "1100 * range_select_base(eon_mountain_lava_spots_at16, 0.3, 10, 1, 0, 1) - eon_offset_vulcano"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_lava_hot_mountains_range_at16",
+    expression = "1000 * range_select_base(eon_mountain_lava_spots_at16, 0.15, 0.35, 1, 0, 1) - eon_offset_vulcano"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_updated_volcanic_folds_at16",
+    expression = "10 * range_select_base(eon_terr_volcano_spots * 1.95 - 0.9, 0.16, 10, 1, 0, 1) - eon_offset_vulcano"
+  },
+  {
+    type = "noise-expression",
+    name = "eon_updated_volcanic_folds_flat_at16",
+    expression = "10 * range_select_base(eon_terr_volcano_spots * 1.95 - 0.9, 0, 0.5, 1, 0, 1) - eon_offset_vulcano"
+  },
+  {
+    -- Core-only territory mask: folds + lava rings on the 16px-shifted field, WITHOUT
+    -- the outer folds-flat skirt. The flat skirt is 0.5-1.5 chunks of gentle rim that
+    -- (a) grabbed rim/water fringe chunks whose corner sampled interior, and (b) put
+    -- patrol anchors on the volcano edge (demolishers circling or starting over water).
+    -- Excluding it leaves the rim as a buffer zone so patrol points stay well inside
+    -- volcano ground, while every lava/folds tile stays covered.
+    type = "noise-expression",
+    name = "eon_vulcanus_core_at16",
+    expression = "max(eon_updated_volcanic_folds_at16, eon_lava_mountains_range_at16, eon_lava_hot_mountains_range_at16) > 0"
+  },
+  {
+    -- Territory mask: the core, plus the INNER edge of the folds-flat skirt (flat
+    -- tiles whose spot field is still above 0.55 -- the sliver nearest the core, a
+    -- small nudge for the rim-edge grains). The skirt add is tile-truth by
+    -- construction ((flat_at16 > 0) is a real tile signal), so it can never claim
+    -- off-volcano ground; keeping it thin means the water-corner rim chunks (whose
+    -- patrol anchors would sit on their deepwater parts) stay unclaimed.
+    type = "noise-expression",
+    name = "eon_demolisher_mask_at16",
+    expression = "max(eon_vulcanus_core_at16, (eon_updated_volcanic_folds_flat_at16 > 0) * (eon_terr_volcano_spots > 0.6))"
   },
   {
     -- Steeper slope crowding terrace rings near the lava for cliff contours

@@ -21,7 +21,25 @@ Date: 2026-09-XX
     - Aquilo keeps only crude oil, lithium brine and fluorine vents: all other ores stay off aquilo land and ammonia ocean.
     - Tungsten is leaner (richness base halved-ish) with frequency-normalized distance gradients; flaming ashland trees stay deep inside volcanoes; lava fills big-volcano centers (vanilla upper bound).
   Bugfixes:
-    - Demolisher territory now sits centered and inside volcanoes: it uses a half-chunk-shifted eroded volcano mask (spots > 0.55, water excluded) to compensate chunk-aligned territory sampling, which cut off the top/left and poked outside to the bottom/right. Territories exist only on volcano terrain, so demolishers stay at volcanoes.
+    - Demolisher territory is bound to the volcano CORE (folds + lava rings, outer
+      folds-flat skirt excluded): the mask is the same signals that place the core tiles,
+      built on the 16px-shifted spot field so the engine's top-left-corner chunk sampling
+      stays centered (measured +15/+16px SE bias un-shifted, ~0 after), plus a thin inner
+      edge of the flat skirt (spots > 0.6, tile-truth). The skirt becomes a buffer ring:
+      rim/water fringe chunks no longer grab territory, and demolisher patrol anchors stay
+      inside volcano ground (measured: every lava-bearing chunk is covered; the canyon of
+      screening off-territory chunks is zero). The index expression is sampled at one fixed
+      world-aligned corner per 32x32 chunk (claimed iff >= 0), and minimum_territory_size
+      = 3 drops the last 1x1/2x1 voronoi cells that stranded a medium demolisher on a single
+      patrol point (tail-chasing); territory voronoi cells (radius 512) are larger than the
+      typical volcano, so interior chunks share one cell and one patrolable territory.
+    - Tungsten hugs the lava heart of the volcano: the favor band is the flank ring at
+      spots > 0.65 (outside the lava core, which blocks placement itself), candidate
+      frequency boosted x3 to repay the inward clip, and the render gate is the territory
+      core mask so virtually no ore renders outside demolisher territory (0.3% measured,
+      all in northwest-rim chunks one sample off a chunk corner; nil at any reported gps).
+      Roughly one in five small volcanoes has no ore (accepted: presence on the rest
+      beats rim drift).
     - Nauvis ores (iron, copper, stone, coal, uranium, crude oil, holmium/scrap) no longer spawn inside volcano areas.
     - Dead grey trunks no longer spawn outside Nauvis territory (no more dead trees on volcanoes).
     - Volcanoes get elevation-driven cliff terraces up their flanks; rings generate as nauvis cliffs and control.lua re-skins volcano-terrain ones as cliff-vulcanus, keeping orientation. Only newly generated chunks convert.

@@ -1,0 +1,13 @@
+{
+    "name": "eon-probe-geometry",
+    "version": "0.0.1",
+    "title": "EoN territory geometry prober (dev only)",
+    "description": "Overrides the demolisher territory expression with a lattice probe and dumps which chunks get claimed, revealing the engine's per-chunk sampling point.",
+    "author": "morganc",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0.0",
+        "space-age >= 2.0.0",
+        "EverythingOnNauvis-morganc >= 0.1.0"
+    ]
+}

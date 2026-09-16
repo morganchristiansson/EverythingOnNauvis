@@ -1,0 +1,13 @@
+{
+    "name": "eon-verify-territory",
+    "version": "0.0.1",
+    "title": "EoN territory verifier (dev only)",
+    "description": "Charts a disc around a volcano, waits for generation, then dumps per-chunk territory ids and volcano tile samples as JSON.",
+    "author": "morganc",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0.0",
+        "space-age >= 2.0.0",
+        "EverythingOnNauvis-morganc >= 0.1.0"
+    ]
+}
