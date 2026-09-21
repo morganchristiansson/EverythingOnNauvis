@@ -1686,10 +1686,11 @@ data:extend({
   {
     -- Cliff elevation follows the same blend as the tiles: Nauvis contours
     -- north, Gleba elevation contours deep south (vanilla Gleba uses the
-    -- elevation property directly). Volcano spikes still ring volcanoes.
+    -- elevation property directly). Volcano spikes still ring volcanoes. Compensate
+    -- for non-default cliff_elevation_0 so the contour grid keeps the same offsets.
     type = "noise-expression",
     name = "eon_cliff_elevation",
-    expression = "lerp(cliff_elevation_nauvis, eon_elevation_blended, eon_gleba_blend_fast) + eon_volcano_cliff_spike"
+    expression = "lerp(cliff_elevation_nauvis, eon_elevation_blended, eon_gleba_blend_fast) + eon_volcano_cliff_spike + (cliff_elevation_0 - 10)"
   },
   {
     -- Cliffiness with volcanoes enabled, blending to vanilla Gleba density
