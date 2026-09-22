@@ -106,7 +106,7 @@ def main():
     print(f"stains-small sampled={d['stain_total']} dist-to-calcite p50/p90/max = "
           f"{d['stain_dist_p50']}/{d['stain_dist_p90']}/{d['stain_dist_max']}")
     for kind, a in d["acid"].items():
-        if kind == "all_resources":
+        if kind in ("all_resources", "demolishers"):
             continue
         amt = f" amount={a['total_amount']}" if "total_amount" in a else ""
         tiles = f" tiles={a.get('tiles')}" if 'tiles' in a else ""
@@ -125,7 +125,10 @@ def main():
         nb = sum(bins)
         print(f"  ({v['x']},{v['y']}) samples={v['n']} lava={v['lava']} cliffs={nb} "
               f"bins={bins} geysers={v.get('geysers_near_450')}")
-    print(f"cliffs inside lava: {d['acid'].get('cliffs_in_lava', {}).get('total')}")
+    print(f"demolishers: {dict(sorted(d['acid'].get('demolishers', {}).items()))}")
+    for v in sorted(d["volcanoes"], key=lambda v: -v["n"]):
+        dms = "+".join(f"{k}:{c}" for k, c in sorted(v.get('demolishers_600', {}).items(), key=lambda kv: -kv[1]))
+        print(f"  volc ({v['x']},{v['y']}) samples={v['n']} lava={v['lava']} demos=[{dms or 'none'}] nearest={v.get('nearest_demolisher')}")
     print("largest patches:")
     for p in sorted(d["patches"], key=lambda p: -p["richness"])[:12]:
         print(f"  ({p['x']},{p['y']}) n={p['entities']} rich={p['richness']} "

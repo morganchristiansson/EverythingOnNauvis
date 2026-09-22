@@ -395,6 +395,32 @@ script.on_init(function()
       v.cliff_min_gap_to_lava = min_gap and math.floor(min_gap) or -1
     end
   end
+  -- Demolisher census per volcano (mama+ring vs split vs single + babies).
+  local demos = surface.find_entities_filtered({ area = AREA, type = "segmented-unit" })
+  local demo_tally = {}
+  for _, d in pairs(demos) do
+    demo_tally[d.name] = (demo_tally[d.name] or 0) + 1
+  end
+  acid["demolishers"] = demo_tally
+  for _, v in pairs(volcanoes) do
+    local near = {}
+    for _, d in pairs(demos) do
+      local p = d.position
+      local dx, dy = p.x - v.x, p.y - v.y
+      if dx * dx + dy * dy < 600 * 600 then
+        near[d.name] = (near[d.name] or 0) + 1
+      end
+    end
+    v.demolishers_600 = near
+    local minp = nil
+    for _, d in pairs(demos) do
+      local p = d.position
+      local dx, dy = p.x - v.x, p.y - v.y
+      local dist = dx * dx + dy * dy
+      if not minp or dist < minp then minp = dist end
+    end
+    v.nearest_demolisher = minp and math.floor(math.sqrt(minp)) or -1
+  end
   helpers.write_file("eon-calcite-report.json", helpers.table_to_json({
     seed = game.default_map_gen_settings.seed,
     radius = RADIUS,
