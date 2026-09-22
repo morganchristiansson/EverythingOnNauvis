@@ -1415,14 +1415,16 @@ terrain.mask_volcano_fade("vulcanus-crack-decal", "optimized-decorative", 0.43)
 terrain.mask_volcano_fade("vulcanus-crack-decal-large", "optimized-decorative", 0.43)
 terrain.mask_volcano_fade("vulcanus-crack-decal-huge-warm", "optimized-decorative", 0.43)
 terrain.mask_volcano_fade("vulcanus-crack-decal-warm", "optimized-decorative", 0.43)
-terrain.mask_volcano_fade("sulfur-stain", "optimized-decorative", 0.43)
-terrain.mask_volcano_fade("sulfur-stain-small", "optimized-decorative", 0.43)
--- Sulfuric acid puddles stay TIGHT inside volcano terrain: their vaniln region
--- (vulcanus_sulfuric_acid_region_patchy) is positive over the broad pre-biome
--- around the volcano, so a feathered mask rendered them on plain ground just
--- outside the rim. Hard mask, no fade band.
-terrain.mask_vulcano_terrain("sulfuric-acid-puddle", "optimized-decorative")
-terrain.mask_vulcano_terrain("sulfuric-acid-puddle-small", "optimized-decorative")
+-- Sulfur stains follow the geysers (core + per-volcano hash gate, see
+-- eon_mask_sulfur_acid in resources-updates.lua) instead of the generic
+-- volcano fade band.
+data.raw["optimized-decorative"]["sulfur-stain"].autoplace.probability_expression = "eon_mask_sulfur_acid(eon_sulfur_stain)"
+data.raw["optimized-decorative"]["sulfur-stain-small"].autoplace.probability_expression = "eon_mask_sulfur_acid(eon_sulfur_stain_small)"
+-- Sulfuric acid puddles follow the geysers too (their vanilla region is the
+-- same geyser region, now gated to core + hash; previously a feathered/tight
+-- volcano mask left them on volcanoes without geysers).
+data.raw["optimized-decorative"]["sulfuric-acid-puddle"].autoplace.probability_expression = "eon_mask_sulfur_acid(eon_sulfuric_acid_puddle)"
+data.raw["optimized-decorative"]["sulfuric-acid-puddle-small"].autoplace.probability_expression = "eon_mask_sulfur_acid(eon_sulfuric_acid_puddle_small)"
 terrain.mask_volcano_fade("crater-small", "optimized-decorative", 0.43)
 terrain.mask_volcano_fade("crater-large", "optimized-decorative", 0.43)
 terrain.mask_volcano_fade("pumice-relief-decal", "optimized-decorative", 0.43)
@@ -1520,10 +1522,12 @@ data:extend({
     -- throttles candidate DENSITY (fewer/no volcanoes near spawn) but never
     -- touches field values, so volcanoes that do form are always whole -- the
     -- old starting-spot subtraction cropped overlapping volcanoes (missing
-    -- lava, clipped demolisher territory). Favorability is deliberately NOT
-    -- gated: gated fields would make weak, lava-less volcanoes in the ramp.
+    -- lava, clipped demolisher territory). Halved from the vanilla-ish
+    -- 850*radius ramp so volcanoes can sit much closer to spawn -- no harm in
+    -- nearby volcanoes. Favorability is deliberately NOT gated: gated fields
+    -- would make weak, lava-less volcanoes in the ramp.
     name = "eon_volcano_spawn_gate",
-    expression = "clamp((distance - 850 * eon_starting_radius) / (850 * eon_starting_radius), 0, 1)"
+    expression = "clamp((distance - 425 * eon_starting_radius) / (425 * eon_starting_radius), 0, 1)"
   },
   {
     -- Volcanoes grow bigger further from spawn.
@@ -1532,12 +1536,15 @@ data:extend({
     expression = "0.8 + 0.4 * min(distance / 5000, 1)"
   },
   {
-    -- Effective volcanism (vanilla formula): couples the size and frequency
-    -- sliders into volcano packing density. Shared here so the demolisher
-    -- size progression can normalize distance by it (see enemies.lua).
+    -- Effective volcanism (size ONLY): vanilla couples the frequency slider in
+    -- here as a divider (slider_rescale(freq,3)), so cranking frequency shrank
+    -- every volcano (at freq 6 ~129px radius vs 300). Decoupled: the size
+    -- slider scales volcano size/spacing, the frequency slider scales density
+    -- via density_multiplier below. Shared so the demolisher size progression
+    -- can normalize distance by it (see enemies.lua).
     type = "noise-expression",
     name = "eon_volcanism",
-    expression = "0.3 + 0.7 * slider_rescale(control:vulcanus_volcanism:size, 3) / slider_rescale(vulcanus_scale_multiplier, 3)"
+    expression = "0.3 + 0.7 * slider_rescale(control:vulcanus_volcanism:size, 3)"
   },
   {
     -- Detail noise with an explicit position offset (base vulcanus_detail_noise has none).
@@ -1580,7 +1587,13 @@ data:extend({
       volcano_spot_radius = "300 * volcanism * sqrt(1 + control:vulcanus_volcanism:size)",
       volcano_spot_size = "volcano_spot_radius * size_mult * eon_volcano_size_dist",
       volcano_spot_spacing = "1500 * volcanism",
-      density_multiplier = "5 / sqrt(control:vulcanus_volcanism:frequency)"
+      -- Frequency -> density only: smaller candidate cells = more volcanoes.
+      -- Rescaled from 5/sqrt(freq) so the highest slider setting yields a
+      -- little over twice the volcanoes it used to (measured: volcano count
+      -- ~ proportional to 1/cell-area, i.e. ~linear in frequency; 3.5 lands
+      -- about 11 volcanoes per 3.2km square at 100% vs 5 before). Cranking
+      -- frequency past the GUI max keeps adding.
+      density_multiplier = "3.5 / sqrt(control:vulcanus_volcanism:frequency)"
     }
   },
   {

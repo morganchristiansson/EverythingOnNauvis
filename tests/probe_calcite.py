@@ -106,17 +106,26 @@ def main():
     print(f"stains-small sampled={d['stain_total']} dist-to-calcite p50/p90/max = "
           f"{d['stain_dist_p50']}/{d['stain_dist_p90']}/{d['stain_dist_max']}")
     for kind, a in d["acid"].items():
-        print(f"  {kind}: total={a['total']} on_volcano={a['on_volcano']} off_volcano={a['off_volcano']}")
+        if kind == "all_resources":
+            continue
+        amt = f" amount={a['total_amount']}" if "total_amount" in a else ""
+        tiles = f" tiles={a.get('tiles')}" if 'tiles' in a else ""
+        onoff = f" on_volcano={a.get('on_volcano', '-')}/off={a.get('off_volcano', '-')}"
+        print(f"  {kind}: total={a['total']} {onoff} "
+              f"core={a.get('core', '-')}/noncore={a.get('noncore', '-')}{amt}{tiles}")
+    print(f"calcite<->geyser dist p50/p90 = {d.get('calcite_geyser_dist_p50')}/{d.get('calcite_geyser_dist_p90')} "
+          f"patches within 30px of a geyser={d.get('calcite_close_to_geyser_30px')}")
+    if 'all_resources' in d['acid']:
+        print(f"  all resources: {dict(sorted(d['acid']['all_resources'].items(), key=lambda kv: -kv[1]))}")
     from collections import Counter
     print("patch center tiles:", dict(Counter(p["center_tile"] for p in d["patches"])))
     print("volcanoes:")
     for v in sorted(d["volcanoes"], key=lambda v: v["nearest_patch"]):
         print(f"  ({v['x']},{v['y']}) samples={v['n']} lava={v['lava']} "
               f"nearest_patch={v['nearest_patch']} "
-              f"patches_450={v.get('patches_within_450')} "
-              f"(on={v.get('patches_on_volcano_450')}/off={v.get('patches_off_volcano_450')}) "
-              f"rich_450={v.get('richness_volcano_450')} "
-              f"stains_450={v.get('stains_near_450')} (on={v.get('stains_on_volcano_450')})")
+              f"patches_450={v.get('patches_within_450')} rich_450={v.get('richness_volcano_450')} "
+              f"geysers_450={v.get('geysers_near_450')} amt={v.get('geyser_amount_450')} "
+              f"puddles_450={v.get('puddles_near_450')} stains_450={v.get('stains_near_450')}")
     print("largest patches:")
     for p in sorted(d["patches"], key=lambda p: -p["richness"])[:12]:
         print(f"  ({p['x']},{p['y']}) n={p['entities']} rich={p['richness']} "

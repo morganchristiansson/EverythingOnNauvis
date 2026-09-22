@@ -2,6 +2,33 @@
 Version: 0.1.10
 Date: 2026-09-XX
   Changes:
+    - Volcano frequency is a pure density control again: vanilla couples it
+      into eon_volcanism as a divider (cranking frequency shrank every volcano
+      -- at 600% ~129px radius vs 300), decoupled, and the density curve rescaled
+      so the highest slider setting yields ~2x the volcanoes (11 vs 5 per 3.2km
+      square at 100%, ~linear in frequency past the GUI max). Volcano spawn
+      protection halved (candidates may form from ~425 tiles out) so volcanoes
+      can sit close to spawn -- no harm in nearby volcanoes.
+    - Sulfuric acid geysers: gated to the inner volcano core (eon_vulcano_coverage,
+      the per-tile form of the demolisher-territory signals), with a per-volcano
+      presence lottery driven by the geyser frequency slider (roughly 20% of
+      volcanoes at the bottom, ~half at default, all of them by 350%). Cluster
+      geometry reuses the same helper/grid as calcite (offset 0 on the shared
+      span-3 sub-grid, so calcite and acid never stack -- measured zero calcite
+      within 30px of a geyser); tile density is vanilla's 0.025 with a capped
+      per-geyser richness (no size-slider inverse, so shrinking size no longer
+      makes each remaining geyser 16x richer). Baseline acid total sits ~1.5-2x
+      crude-oil at default settings.
+    - Sulfur puddles and stains follow the geysers (same core + hash gate)
+      instead of a feathered volcano band; the old mask_volcano_fade rendered
+      them on plain ground outside the rim.
+    - Scrap is fixed in the holmium-off config: vanilla scrap's probability is
+      0 (it only spawned via Fulgora's per-planet overrides) and the old branch
+      wrapped that dead 0, so scrap never rendered. It is now rebuilt as a real
+      nauvis ore (same params holmium-ore uses) with its own resource-autoplace
+      patch-set index, masked like every other ore -- off volcano ground, off
+      aquilo/ammonia/gleba -- so it can't stack on calcite (volcano-anchored) or
+      the base ores (measured zero scrap within 25px of iron).
     - Calcite ore grows at volcanoes (vanilla Vulcanus behavior) instead of as
       plain Nauvis scatter: spots anchor on a smoothed volcano spot field via
       vanilla's vulcanus_place_non_metal_spots, so each volcano carries roughly

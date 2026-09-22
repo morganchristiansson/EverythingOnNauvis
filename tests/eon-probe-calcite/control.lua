@@ -14,6 +14,15 @@ local function is_lava_tile(name)
   return name == "lava" or name == "lava-hot"
 end
 
+-- Core = the demolisher-territory signals (folds + lava ring, the unshifted
+-- per-tile form); skirt/outer = folds-flat and the rest of the volcano tiles.
+-- Sulfur acid stuff (geysers AND their puddles/stains) must sit on core tiles
+-- only.
+local function is_core_tile(name)
+  return name == "volcanic-folds" or name == "volcanic-folds-warm"
+      or is_lava_tile(name)
+end
+
 script.on_init(function()
   helpers.write_file("eon-calcite-started.txt", "on_init fired at tick " .. game.tick)
   local surface = game.surfaces["nauvis"]
@@ -133,10 +142,12 @@ script.on_init(function()
   end
 
   -- Per-volcano patch census: patches within 450px of the volcano center, their
-  -- on/off-terrain split and total richness; plus a stain census in the same
-  -- radius (on vs off volcano ground).
+  -- on/off-terrain split and total richness; plus stain and geyser censuses in
+  -- the same radius (on vs off volcano ground).
   do
     local stains = surface.find_decoratives_filtered({ area = AREA, name = "calcite-stain-small" })
+    local geysers = surface.find_entities_filtered({ area = AREA, name = "sulfuric-acid-geyser" })
+    local pdls = surface.find_decoratives_filtered({ area = AREA, name = "sulfuric-acid-puddle" })
     for _, v in pairs(volcanoes) do
       local n_on, n_off, rich_on, rich_off = 0, 0, 0, 0
       for _, p in pairs(patches) do
@@ -166,6 +177,26 @@ script.on_init(function()
       end
       v.stains_near_450 = stain_near
       v.stains_on_volcano_450 = stain_on
+      local geyser_near, geyser_amt = 0, 0
+      for _, g in pairs(geysers) do
+        local p = g.position
+        local dx, dy = p.x - v.x, p.y - v.y
+        if dx * dx + dy * dy < 450 * 450 then
+          geyser_near = geyser_near + 1
+          geyser_amt = geyser_amt + (g.amount or 0)
+        end
+      end
+      v.geysers_near_450 = geyser_near
+      v.geyser_amount_450 = geyser_amt
+      local puddle_near = 0
+      for _, s in pairs(pdls) do
+        local p = s.position
+        local dx, dy = p.x - v.x, p.y - v.y
+        if dx * dx + dy * dy < 450 * 450 then
+          puddle_near = puddle_near + 1
+        end
+      end
+      v.puddles_near_450 = puddle_near
     end
   end
 
@@ -205,36 +236,119 @@ script.on_init(function()
   end
 
   -- Sulfuric acid puddles/geysers must be 100% on volcano terrain (tight mask,
-  -- no feather band). Count on/off samples.
+  -- no feather band) AND on inner-core tiles (demolisher territory signals),
+  -- and follow the per-volcano geyser gate. Count off-core samples.
   local acid = {}
   do
-    for _, kind in pairs({ "sulfuric-acid-puddle", "sulfuric-acid-puddle-small" }) do
-      local on, off, total = 0, 0, 0
+    for _, kind in pairs({ "sulfuric-acid-puddle", "sulfuric-acid-puddle-small", "sulfur-stain", "sulfur-stain-small" }) do
+      local on, off, core, noncore, total = 0, 0, 0, 0, 0
+      local tiles = {}
       local found = surface.find_decoratives_filtered({ area = AREA, name = kind, limit = 200000 })
       for _, dec in pairs(found) do
         total = total + 1
         local p = dec.position
+        local t = surface.get_tile(math.floor(p.x), math.floor(p.y)).name
+        if is_volcano_tile(t) then on = on + 1 else off = off + 1 end
+        if is_core_tile(t) then core = core + 1 else noncore = noncore + 1 end
+        tiles[t] = (tiles[t] or 0) + 1
+      end
+      acid[kind] = { total = total, on_volcano = on, off_volcano = off, core = core, noncore = noncore, tiles = tiles }
+    end
+    local on, off, total, amount, core, noncore = 0, 0, 0, 0, 0, 0
+    for _, g in pairs(surface.find_entities_filtered({ area = AREA, name = "sulfuric-acid-geyser" })) do
+      total = total + 1
+      amount = amount + (g.amount or 0)
+      local p = g.position
+      local t = surface.get_tile(math.floor(p.x), math.floor(p.y)).name
+      if is_volcano_tile(t) then on = on + 1 else off = off + 1 end
+      if is_core_tile(t) then core = core + 1 else noncore = noncore + 1 end
+    end
+    acid["sulfuric-acid-geyser"] = { total = total, on_volcano = on, off_volcano = off, core = core, noncore = noncore, total_amount = amount }
+    -- Crude-oil wells as the reference scale (geyser baseline should sit near it).
+    local oil_n, oil_amt = 0, 0
+    for _, g in pairs(surface.find_entities_filtered({ area = AREA, name = "crude-oil" })) do
+      oil_n = oil_n + 1
+      oil_amt = oil_amt + (g.amount or 0)
+    end
+    acid["crude-oil"] = { total = oil_n, total_amount = oil_amt }
+  end
+
+  -- Calcite <-> geyser overlap: with different skip-offset sub-grids their
+  -- spot candidates should rarely coincide; measure nearest-geyser distance
+  -- per calcite patch (64px cells).
+  local geyser_positions = {}
+  do
+    for _, g in pairs(surface.find_entities_filtered({ area = AREA, name = "sulfuric-acid-geyser" })) do
+      local p = g.position
+      geyser_positions[#geyser_positions + 1] = { x = p.x, y = p.y }
+    end
+  end
+  local calcite_geyser_dists = {}
+  local calcite_close_to_geyser = 0
+  for _, p in pairs(patches) do
+    local best = nil
+    for _, g in pairs(geyser_positions) do
+      local dx, dy = p.x - g.x, p.y - g.y
+      local d = dx * dx + dy * dy
+      if not best or d < best then best = d end
+    end
+    if best then
+      local b = math.sqrt(best)
+      calcite_geyser_dists[#calcite_geyser_dists + 1] = math.floor(b)
+      if b < 30 then calcite_close_to_geyser = calcite_close_to_geyser + 1 end
+    end
+  end
+  table.sort(calcite_geyser_dists)
+  local function pct2(t, q)
+    if #t == 0 then return -1 end
+    return t[math.min(#t, math.max(1, math.floor(#t * q) + 1))]
+  end
+
+  -- Scrap / iron placement sanity: nauvis-only ores must stay OFF volcano
+  -- ground (scrap only exists in the holmium-off config) and their spots use
+  -- the patch-set grid so they don't stack on each other.
+  do
+    for _, name in pairs({ "scrap", "iron-ore" }) do
+      local on, off, total = 0, 0, 0
+      for _, e in pairs(surface.find_entities_filtered({ area = AREA, name = name })) do
+        total = total + 1
+        local p = e.position
         if is_volcano_tile(surface.get_tile(math.floor(p.x), math.floor(p.y)).name) then
           on = on + 1
         else
           off = off + 1
         end
       end
-      acid[kind] = { total = total, on_volcano = on, off_volcano = off }
+      acid[name] = { total = total, on_volcano = on, off_volcano = off }
     end
-    local on, off, total = 0, 0, 0
-    for _, g in pairs(surface.find_entities_filtered({ area = AREA, name = "sulfuric-acid-geyser" })) do
-      total = total + 1
-      local p = g.position
-      if is_volcano_tile(surface.get_tile(math.floor(p.x), math.floor(p.y)).name) then
-        on = on + 1
-      else
-        off = off + 1
+    -- All resource names in area (debug: what actually renders).
+    local res_tally = {}
+    for _, e in pairs(surface.find_entities_filtered({ area = AREA, type = "resource" })) do
+      res_tally[e.name] = (res_tally[e.name] or 0) + 1
+    end
+    acid["all_resources"] = res_tally
+    -- scrap <-> iron proximity (patch-set de-overlap check).
+    local scrapv, ironv = {}, {}
+    for _, e in pairs(surface.find_entities_filtered({ area = AREA, name = "scrap" })) do
+      local p = e.position
+      scrapv[#scrapv + 1] = { x = p.x, y = p.y }
+    end
+    for _, e in pairs(surface.find_entities_filtered({ area = AREA, name = "iron-ore" })) do
+      local p = e.position
+      ironv[#ironv + 1] = { x = p.x, y = p.y }
+    end
+    local scrap_iron_close = 0
+    for _, s in pairs(scrapv) do
+      for _, i in pairs(ironv) do
+        local dx, dy = s.x - i.x, s.y - i.y
+        if dx * dx + dy * dy < 25 * 25 then
+          scrap_iron_close = scrap_iron_close + 1
+          break
+        end
       end
     end
-    acid["sulfuric-acid-geyser"] = { total = total, on_volcano = on, off_volcano = off }
+    acid["scrap_iron_close_25px"] = { total = scrap_iron_close }
   end
-
   helpers.write_file("eon-calcite-report.json", helpers.table_to_json({
     seed = game.default_map_gen_settings.seed,
     radius = RADIUS,
@@ -243,6 +357,9 @@ script.on_init(function()
     off_terrain_tiles = off_terrain_tiles,
     off_terrain_positions = off_terrain_positions,
     acid = acid,
+    calcite_geyser_dist_p50 = pct2(calcite_geyser_dists, 0.5),
+    calcite_geyser_dist_p90 = pct2(calcite_geyser_dists, 0.9),
+    calcite_close_to_geyser_30px = calcite_close_to_geyser,
     patch_count = #patches,
     patches_on_volcano_terrain = on_volc,
     patches_off_volcano_terrain = off_volc,

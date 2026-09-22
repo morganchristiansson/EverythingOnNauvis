@@ -68,16 +68,31 @@ if holmium_ore then
         "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(" .. current .. "))"
   end
 else
-  -- Keep scrap
+  -- Keep scrap: rebuild it as a plain nauvis ore. Vanilla scrap has
+  -- probability 0 (it only spawned via Fulgora's per-planet property
+  -- overrides, which do not exist here), and the old branch wrapped that dead
+  -- 0, so scrap never rendered. Same params holmium-ore would use; masked
+  -- nauvis-only like every other ore -- off volcano ground, off
+  -- aquilo/ammonia/gleba -- so it never stacks on calcite (volcano-anchored)
+  -- or the base ores (resource-autoplace gives scrap its own patch-set index
+  -- on the shared default grid, so its candidates can't coincide with
+  -- iron/copper/etc).
   data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["scrap"] = {}
   data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["scrap"] = {}
-  data.raw.resource["scrap"].autoplace.has_starting_area_placement = false  -- no scrap in the Nauvis starting area
-  terrain.mask_resource_territory_off_gleba("scrap", "resource")
-  do
-    local current = data.raw.resource["scrap"].autoplace.probability_expression
-    data.raw.resource["scrap"].autoplace.probability_expression =
-        "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(" .. current .. "))"
-  end
+  local resource_autoplace = require("resource-autoplace")
+  local scrap_ap = resource_autoplace.resource_autoplace_settings {
+    name = "scrap",
+    order = "c-scrap",
+    base_density = 0.4,
+    base_spots_per_km2 = 1.25,
+    has_starting_area_placement = false,
+    random_spot_size_minimum = 2,
+    random_spot_size_maximum = 4,
+    regular_rq_factor_multiplier = 1
+  }
+  data.raw.resource["scrap"].autoplace = scrap_ap
+  data.raw.resource["scrap"].autoplace.probability_expression =
+      "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(eon_mask_off_gleba_territory(eon_mask_off_vulcano_terrain(eon_mask_resource_territory(" .. scrap_ap.probability_expression .. ")))))"
 end
 
 --------------------------------------------------------------------------------
@@ -166,7 +181,28 @@ data.raw.resource["sulfuric-acid-geyser"].autoplace.has_starting_area_placement 
 -- as the puddles: the vanilla geyser region is positive over the broad
 -- pre-biome around the volcano). Hard mask via eon_mask_vulcano_terrain, no
 -- feathering.
-data.raw["noise-expression"]["vulcanus_sulfuric_acid_geyser_probability"].expression = "eon_mask_vulcano_terrain((control:sulfuric_acid_geyser:size > 0) * (0.005 * ((vulcanus_sulfuric_acid_region_patchy > 0) + 2 * eon_updated_volcanic_folds)))"
+--
+-- Geyser PRESENCE is a two-stage gate: (1) cluster geometry -- eon_sulfur_geo_spots
+-- (same helper+geometry calcite uses so every volcano gets cluster candidates)
+-- places clusters on any volcano ground; (2) a per-volcano hash gate
+-- (eon_sulfur_volcano_gate) picks which volcanoes are actually gassy, with a
+-- threshold that drops as the geyser frequency slider rises (bottom ~20% of
+-- volcanoes, default ~half, 600% all). Tile density is vanilla's 0.025 gate so
+-- geysers are dense enough to cover their puddles/stains (richness cut to
+-- match). Puddles/stains share the region and the core+hash gate, so they stay
+-- paired with the geysers.
+data.raw["noise-expression"]["vulcanus_sulfuric_acid_region"].expression =
+    "max(vulcanus_starting_sulfur, min(1 - vulcanus_starting_circle, eon_sulfur_geo_spots))"
+data.raw["noise-expression"]["vulcanus_sulfuric_acid_geyser_probability"].expression = "eon_mask_sulfur_acid((control:sulfuric_acid_geyser:size > 0) * (0.025 * (vulcanus_sulfuric_acid_region_patchy > 0)))"
+-- Richness: vanilla shape, but per-entity scale cut to match the vanilla 0.025
+-- gate above (denser geysers that cover their puddles/stains) and DECOUPLED
+-- from the size slider -- vanilla divides by slider_rescale(size,2), so
+-- shrinking the size (e.g. 0.25) made each remaining geyser ~16x richer
+-- (measured ~46M per geyser at size 0.25, still "extremely rich"). The size
+-- slider now scales cluster AREA only, i.e. the total per volcano; per-geyser
+-- richness is a flat ~2M (a few crude wells). Baseline total stays ~2x
+-- crude-oil at default settings.
+data.raw["noise-expression"]["vulcanus_sulfuric_acid_geyser_richness"].expression = "(vulcanus_sulfuric_acid_region > 0) * random_penalty_between(0.5, 1, 1) * 12000 * 40 * vulcanus_richness_multiplier * vulcanus_starting_area_multiplier * control:sulfuric_acid_geyser:richness"
 data.raw["noise-expression"]["vulcanus_starting_sulfur"].expression = "-inf"
 
 data.raw.resource["tungsten-ore"].autoplace.has_starting_area_placement = false -- Does nothing but noise expression vulcanus_starting_tungsten removes starter spot
@@ -242,6 +278,41 @@ data:extend({
     type = "noise-expression",
     name = "eon_calcite_volcano_region",
     expression = "max(vulcanus_starting_calcite, min(1 - vulcanus_starting_circle, vulcanus_place_non_metal_spots(749, 6, 1, vulcanus_calcite_size * min(1.2, vulcanus_ore_dist) * 20, control:calcite:frequency * 1.5, max(eon_calcite_volcano_favorability, 0.25))))"
+  },
+  {
+    -- Sulfur geyser clusters: same geometry calcite uses except the skip-offset
+    -- sub-grid -- vanilla runs calcite/coal/sulfur on offset 1/2/0 so the three
+    -- spot systems de-overlap (candidates never coincide); sulfur had drifted
+    -- to calcite's offset 1, so their patches could stack on the same tiles.
+    -- Spots on any volcano ground with near-certain coverage (count 6, small
+    -- cells); the per-volcano hash gate (eon_sulfur_volcano_gate) picks which
+    -- volcanoes are actually gassy. Cells shrink with the geyser frequency
+    -- slider (more clusters per volcano as it rises).
+    type = "noise-expression",
+    name = "eon_sulfur_geo_spots",
+    expression = "vulcanus_place_sulfur_spots(759, 6, 0, vulcanus_sulfuric_acid_geyser_size * min(1.2, vulcanus_ore_dist) * 25, control:sulfuric_acid_geyser:frequency * 1.5, eon_calcite_volcano_favorability)"
+  },
+  {
+    -- Volcano-scale hash: abs() of smooth blobs (input_scale 1/300 = features
+    -- ~300-600px, roughly per-volcano), gate = abs(noise) > threshold so whole
+    -- volcanoes flip together-ish, with partial flips on the big ones.
+    -- Threshold curve: 0.78 at frequency 0 (~20% of volcanoes gassy), 0.35 at
+    -- default 100% (~half), 0 from 350% up (all volcanoes gassy).
+    type = "noise-expression",
+    name = "eon_sulfur_volcano_gate",
+    expression = "abs(multioctave_noise{x = x, y = y, seed0 = map_seed, seed1 = 759031, octaves = 2, persistence = 0.6, input_scale = 1/300, output_scale = 2}) > (0.78 - 0.43 * min(control:sulfuric_acid_geyser:frequency, 1) - 0.35 * clamp((control:sulfuric_acid_geyser:frequency - 1) / 2.5, 0, 1))"
+  },
+  {
+    -- Sulfur acid gate: geysers AND their puddles/stains live only on the
+    -- inner volcano core -- the same signals demolisher territory is built
+    -- from (folds + lava ring, eon_vulcano_coverage, the per-tile UNSHIFTED
+    -- form; the _at16 variant only exists to compensate the territory
+    -- expression's chunk-corner sampling, it is not a tile-truth gate) -- and
+    -- only on volcanoes the per-volcano hash gate picked.
+    type = "noise-function",
+    name = "eon_mask_sulfur_acid",
+    parameters = {"expression"},
+    expression = "if(eon_vulcano_coverage > 0, if(eon_sulfur_volcano_gate > 0, expression, -inf), -inf)"
   },
 })
 -- NOTE: this replaces the dead vulcanus_tungsten_ore_probability override that
