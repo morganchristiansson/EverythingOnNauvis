@@ -1299,7 +1299,7 @@ data.raw["noise-expression"]["gleba_elevation"].local_expressions = nil
 -- slime on dry highland near shores and is removed.
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["moisture"] = "eon_moisture_blended"
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["aux"] = "eon_aux_blended"
-data.raw.planet["nauvis"].map_gen_settings.property_expression_names["elevation"] = "eon_elevation_surface"
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["elevation"] = "eon_elevation_blended"
 
 --------------------------------------------------------------------------------
 -- MARK: Fix Vulcanus related map gen settings
@@ -1792,15 +1792,15 @@ data:extend({
     expression = "eon_elevation_blended + 300 * eon_volcano_relief * eon_volcano_cone"
   },
   {
-    -- Cliff rings follow the SAME FFF cone: rings climb from the flat base
-    -- (0.55) to the crest (0.80, tight against the lava) and then ring the
-    -- downward slope toward the lava bowl (0.80-0.95) -- the inward-facing
-    -- terrace hugging the pool, the crest ring included. No plateau anywhere:
-    -- the profile peaks at the crest and slopes down into the caldera. Relief-
-    -- scaled amplitude keeps the ring count/spacing uniform across sizes.
+    -- Cliff rings: the flat plateau pre-session staircase (no depression /
+    -- crest ring -- the FFF cone experiment did not survive playtesting),
+    -- relief-scaled so the ring count/spacing stays uniform across volcano
+    -- sizes. Keep eon_volcano_cone/eon_elevation_surface DEFINED below for an
+    -- easy revert-the-revert, but the surface elevation feeds eon_elevation_blended
+    -- directly and rings are the plain ramp again.
     type = "noise-expression",
     name = "eon_volcano_cliff_spike",
-    expression = "300 * eon_volcano_relief * clamp(min((eon_mountain_volcano_spots - 0.55) / 0.25, (0.95 - eon_mountain_volcano_spots) / 0.15), 0, 1)"
+    expression = "300 * eon_volcano_relief * clamp((eon_mountain_volcano_spots - 0.60) / 0.25, 0, 1)"
   },
   {
     -- Cliff elevation follows the same blend as the tiles: Nauvis contours
