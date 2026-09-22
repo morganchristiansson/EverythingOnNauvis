@@ -1530,18 +1530,17 @@ data:extend({
     expression = "clamp((distance - 425 * eon_starting_radius) / (425 * eon_starting_radius), 0, 1)"
   },
   {
-    -- Volcano size vs distance: small near spawn so the nearest cones can
-    -- never reach spawn (the spawn gate lets volcanoes form from ~425 tiles
-    -- out; base radius ~424px, so an unscaled default-size cone could swallow
-    -- spawn -- the old 0.8-bottom ramp made that all but certain for big
-    -- systems), growing to full size by 4000 tiles. Smooth (distance-only): a
-    -- random size term tried here broke map-gen compilation (spot noise
-    -- parameters must be compile-time constants; the per-spot random is not
-    -- compile-safe), so size variety comes from the two spot systems plus the
-    -- distance ramp.
+    -- Volcano size: median keeps the pre-shrink scale (most cones large,
+    -- babies in the noise low tail), with the TOTAL CAP at 1.0 so the big
+    -- noise rolls cannot build the ~800-wide giants spotted further out (max
+    -- ~530px wide with the big system). The 0.5+0.5*gate factor caps how big a
+    -- cone can be near spawn (gate-edge cones ~346px radius, rim ~80 clear of
+    -- spawn). Smooth multioctave noise is fine in spot parameters (sampled at
+    -- each volcano's anchor; random_penalty is NOT -- it broke map-gen
+    -- compilation with "Expected a constant: spotNoise[3]").
     type = "noise-expression",
     name = "eon_volcano_size_dist",
-    expression = "0.30 + 0.70 * min(distance / 4000, 1)"
+    expression = "min((0.90 + 0.30 * min(distance / 5000, 1)) * (0.55 + 0.90 * clamp(0.5 + 0.5 * multioctave_noise{x = x, y = y, seed0 = map_seed, seed1 = 1977, octaves = 3, persistence = 0.6, input_scale = 1/350, output_scale = 1.6}, 0, 1)) * (0.50 + 0.50 * eon_volcano_spawn_gate), 1.0)"
   },
   {
     -- Effective volcanism (size ONLY): vanilla couples the frequency slider in
@@ -1774,14 +1773,14 @@ data:extend({
     expression = "eon_volcano_size_dist / 0.8 * (1 + 0.67 * clamp((eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25} - 0.5) / 0.25, 0, 1))"
   },
   {
-    -- FFF-390 cone: elevation rises from the folds foot (volcano spots 0.54)
-    -- to a crest at the lava edge (0.86, where eon_lava_mountains_range begins)
-    -- and drops back to zero toward the crater center (1.18+) -- a cone with
-    -- a depression at the top, the classic caldera. Feeds the tile elevation
-    -- so the lava visibly sits in a bowl below the rim.
+    -- FFF-390 cone (visual): min(x, P-x)-style -- elevation climbs from the
+    -- flat no-ring base (volcano spots 0.55) to a crest TIGHT against the lava
+    -- (0.80) then slopes DOWN toward the caldera (zero at 0.95, deep in the
+    -- lava pool). Feeds the tile elevation, so the pool sits low in a visible
+    -- bowl below the rim with an inward-facing wall.
     type = "noise-expression",
     name = "eon_volcano_cone",
-    expression = "clamp(min(eon_mountain_volcano_spots - 0.54, 1.18 - eon_mountain_volcano_spots) / 0.32, 0, 1)"
+    expression = "clamp(min((eon_mountain_volcano_spots - 0.55) / 0.25, (0.95 - eon_mountain_volcano_spots) / 0.15), 0, 1)"
   },
   {
     -- Elevation the SURFACE tiles render at (property "elevation"): the
@@ -1793,15 +1792,15 @@ data:extend({
     expression = "eon_elevation_blended + 300 * eon_volcano_relief * eon_volcano_cone"
   },
   {
-    -- Cliff rings follow the same cone: staircase up the CLIMB side (spots
-    -- 0.54-0.86) only, then a FLAT PLATEAU from the crest inward -- no rings
-    -- descend into the caldera, so the top-most ring is outward-facing and
-    -- the caldera interior stays clean (the lava itself shows the depression
-    -- through eon_elevation_surface). Relief-scaled amplitude keeps the ring
-    -- spacing uniform across volcano sizes (see eon_volcano_relief).
+    -- Cliff rings follow the SAME FFF cone: rings climb from the flat base
+    -- (0.55) to the crest (0.80, tight against the lava) and then ring the
+    -- downward slope toward the lava bowl (0.80-0.95) -- the inward-facing
+    -- terrace hugging the pool, the crest ring included. No plateau anywhere:
+    -- the profile peaks at the crest and slopes down into the caldera. Relief-
+    -- scaled amplitude keeps the ring count/spacing uniform across sizes.
     type = "noise-expression",
     name = "eon_volcano_cliff_spike",
-    expression = "300 * eon_volcano_relief * clamp((min(eon_mountain_volcano_spots, 0.86) - 0.54) / 0.32, 0, 1)"
+    expression = "300 * eon_volcano_relief * clamp(min((eon_mountain_volcano_spots - 0.55) / 0.25, (0.95 - eon_mountain_volcano_spots) / 0.15), 0, 1)"
   },
   {
     -- Cliff elevation follows the same blend as the tiles: Nauvis contours
@@ -1827,8 +1826,15 @@ data:extend({
     -- (gleba_cliffiness) with the FAST morph, like every other field: pure
     -- nauvis north of the line, pure vanilla gleba a few hundred tiles south.
     type = "noise-expression",
+    -- Cliffiness with volcanoes: HIGH on volcano terrain (dense rings), then
+    -- a suppressed band on the plain just OUTSIDE the volcano (spot field
+    -- 0.30-0.46: the skirt/rim fringe) so the ladder rings stop at the volcano
+    -- edge instead of leaking onto plain ground as plain-cliff segments (the
+    -- rings must stay INSIDE volcano territory); full nauvis density resumes
+    -- further out. Blends to vanilla Gleba density with the FAST morph south.
+    type = "noise-expression",
     name = "eon_cliffiness",
-    expression = "if(eon_vulcanus_terrain, 1.5, lerp(cliffiness_nauvis, gleba_cliffiness, eon_gleba_blend))"
+    expression = "if(eon_vulcanus_terrain, 1.5, if(eon_mountain_volcano_spots > 0.30, 0.001, lerp(cliffiness_nauvis, gleba_cliffiness, eon_gleba_blend)))"
   },
   -- Noise functions
   {

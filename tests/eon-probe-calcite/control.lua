@@ -349,43 +349,50 @@ script.on_init(function()
     end
     acid["scrap_iron_close_25px"] = { total = scrap_iron_close }
   end
-  -- Volcano cliff census: ring count/spacing per volcano (the rings are the
-  -- eon_volcano_cliff_spike contours in eon_cliff_elevation) and cliffs that
-  -- fell inside lava (the ridge drop should not leave rings in the lava lake).
+  -- Volcano cliff census: ring spacing per volcano (the rings are the
+  -- eon_volcano_cliff_spike contours in eon_cliff_elevation) and the GAP
+  -- between the top-most ring and the lava edge (crest-ring measurement).
   do
     local cliffs = surface.find_entities_filtered({ area = AREA, type = "cliff" })
-    local in_lava = 0
-    for _, c in pairs(cliffs) do
-      local p = c.position
-      if is_lava_tile(surface.get_tile(math.floor(p.x), math.floor(p.y)).name) then
-        in_lava = in_lava + 1
+    -- Sample lava tiles on a 8px grid for nearest-lava distances.
+    local lava_pts = {}
+    local y = -RADIUS
+    while y <= RADIUS do
+      local x = -RADIUS
+      while x <= RADIUS do
+        if is_lava_tile(surface.get_tile(x, y).name) then
+          lava_pts[#lava_pts + 1] = { x = x, y = y }
+        end
+        x = x + 8
       end
+      y = y + 8
     end
-    acid["cliffs_in_lava"] = { total = in_lava }
+    local function nearest_lava(x, y)
+      local best = nil
+      for _, p in pairs(lava_pts) do
+        local dx, dy = x - p.x, y - p.y
+        local d = dx * dx + dy * dy
+        if not best or d < best then best = d end
+      end
+      return best and math.sqrt(best) or -1
+    end
     for _, v in pairs(volcanoes) do
-      -- Radial bins of 25px up to 500: cliff concentration profile shows the
-      -- staircase rings (peaks per bin), the ridge crest near the lava, and
-      -- any rings inside the lava.
-      local bins = {}
-      local lava_cliffs = 0
+      local min_gap, n = nil, 0
+      local max_r = 0
       for _, c in pairs(cliffs) do
         local p = c.position
         local dx, dy = p.x - v.x, p.y - v.y
         local d = math.sqrt(dx * dx + dy * dy)
         if d < 500 then
-          local b = math.floor(d / 25)
-          bins[b] = (bins[b] or 0) + 1
-          if is_lava_tile(surface.get_tile(math.floor(p.x), math.floor(p.y)).name) then
-            lava_cliffs = lava_cliffs + 1
-          end
+          n = n + 1
+          if d > max_r then max_r = d end
+          local g = nearest_lava(p.x, p.y)
+          if not min_gap or g < min_gap then min_gap = g end
         end
       end
-      local binlist = {}
-      for b = 0, 19 do
-        binlist[#binlist + 1] = bins[b] or 0
-      end
-      v.cliff_bins = binlist
-      v.cliff_lava = lava_cliffs
+      v.cliff_total = n
+      v.cliff_max_r = math.floor(max_r)
+      v.cliff_min_gap_to_lava = min_gap and math.floor(min_gap) or -1
     end
   end
   helpers.write_file("eon-calcite-report.json", helpers.table_to_json({
