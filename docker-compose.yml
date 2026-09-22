@@ -13,6 +13,7 @@ services:
       # - ./.git:/workspace/.git:ro
       - /home/morgan/factorio:/factorio:ro
       - /home/morgan/work/space-age-biter-battles:/space-age-biter-battles:ro
+      - /home/morgan/work/factorio-legendary-deathworld:/factorio-legendary-deathworld:ro
       - s25client-home:/home/ubuntu
     working_dir: /workspace
 volumes:

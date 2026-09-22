@@ -94,6 +94,7 @@ script.on_init(function()
   -- tile histogram (sample every 4 tiles for a real inventory)
   local tiles = {}
   local bands = {}
+  local soils = {}
   local n = 0
   local function grp_of(name)
     if string.find(name, "wetland") then return "wetland" end
@@ -114,6 +115,12 @@ script.on_init(function()
         local g = grp_of(t)
         b[g] = (b[g] or 0) + 1
         bands[band_of(y)] = b
+        if t == "natural-yumako-soil" or t == "natural-jellynut-soil" then
+          local sb = soils[band_of(y)] or {}
+          sb[t == "natural-yumako-soil" and "yumako" or "jelly"] =
+              (sb[t == "natural-yumako-soil" and "yumako" or "jelly"] or 0) + 1
+          soils[band_of(y)] = sb
+        end
         n = n + 1
       end
     end
@@ -167,6 +174,7 @@ script.on_init(function()
     local g = grp_of(name)
     out.tile_groups[g] = (out.tile_groups[g] or 0) + c
   end
+  out.soils = soils
   out.bands = bands
   out.top_tiles = tiles
   report.gleba = out

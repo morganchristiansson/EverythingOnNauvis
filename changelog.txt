@@ -2,6 +2,24 @@
 Version: 0.1.10
 Date: 2026-09-XX
   Changes:
+    - Calcite ore grows at volcanoes (vanilla Vulcanus behavior) instead of as
+      plain Nauvis scatter: spots anchor on a smoothed volcano spot field via
+      vanilla's vulcanus_place_non_metal_spots, so each volcano carries roughly
+      1-2 compact patches (the candidate lottery leaves some volcanoes bare and
+      some with a couple more, which map-gen noise and water rims naturally
+      shuffle). Patches may spill a few tiles past the volcano rim onto plain
+      ground and outside demolisher territory (a breadcrumb pointing at the
+      volcano), but never drift far from one; richness is flat in distance like
+      vanilla and capped at tungsten's per-tile scale (2500), so calcite is
+      never richer than tungsten. This replaces the dead
+      vulcanus_calcite_probability override (nothing referenced it) and the
+      nauvis-scatter richness that silently vetoed volcano patches.
+    - Sulfuric acid puddles and geysers are gated tight to volcano terrain (no
+      feather band): their vanilla region is positive over the broad pre-biome
+      around a volcano, so the old mask_volcano_fade band rendered them on
+      plain ground just outside the rim.
+    - Volcano/gleba/aquilo boundary masks renamed *_early -> *_fade (the
+      consistent suffix for the eon_fade boundary family); no behavior change.
     - Ashland and flaming ashland trees grow on volcano terrain.
     - Gleba starts with a translated starting area instead of a lone frontier: vanilla's own yumako+jellynut patch pair (same starting_spot_at_angle formula, radii and wobbles) moved to just below the transition, with vanilla's starting_aux/starting_radius gradient translated to the same spot so gleba_biome_mask_green/red split the start into a yumako side and a jellynut side instead of reading the province lottery (previously one fruit dominated and the other needed deep exploration). Both fruits ~400 tiles apart at gleba landfall; deep south stays regular vanilla Gleba with shared fruit/ore provinces.
     - Gleba's desert-province flora restored: vanilla Gleba grows ~15 shared base-prototype decoratives (desert bushes, pitas, croton, mud/lichen/shroom decals, green carpet/hairy grass) via its own property_expression_names. The merged map now evaluates those same vanilla gleba formulas in gleba territory (nauvis-side behavior untouched); the red/purple/cream nerve-roots-veins decoratives (referenced by wrong unprefixed names in the original mod so they never placed) are registered and masked like the other gleba natives. Measured vs a vanilla-gleba baseline in the same box: all species within ~1-10% in the deep south, cliffs 1.0x vanilla.

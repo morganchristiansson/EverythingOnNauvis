@@ -41,7 +41,7 @@ function terrain.mask_nauvis_territory_fade(decorative, decorative_type, thresho
 end
 
 -- Gleba native that blends north into the mixing band instead of the hard
--- mask_gleba_early switch (eon_mask_gleba_territory_fade). threshold = where
+-- mask_gleba_fade switch (eon_mask_gleba_territory_fade). threshold = where
 -- the north blend ends (-40 for the transition flora leaders).
 function terrain.mask_gleba_territory_fade(decorative, decorative_type, threshold)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_gleba_territory_fade(" .. data_util.generate_eon_name(decorative) .. ", " .. (threshold or 0) .. ")"
@@ -68,12 +68,12 @@ end
 -- Aquilo feathering: land decoratives (bergs, drifts, ice decals) reach past
 -- the territory edge onto northern land; water-bound floaters reach onto
 -- Nauvis water. Reach is in elevation units; verified empirically.
-function terrain.mask_aquilo_land_early(decorative, decorative_type, reach)
-  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_aquilo_land_early(" .. data_util.generate_eon_name(decorative) .. ", " .. reach .. ")"
+function terrain.mask_aquilo_land_fade(decorative, decorative_type, reach)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_aquilo_land_fade(" .. data_util.generate_eon_name(decorative) .. ", " .. reach .. ")"
 end
 
-function terrain.mask_aquilo_water_early(decorative, decorative_type, reach)
-  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_aquilo_water_early(" .. data_util.generate_eon_name(decorative) .. ", " .. reach .. ")"
+function terrain.mask_aquilo_water_fade(decorative, decorative_type, reach)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_aquilo_water_fade(" .. data_util.generate_eon_name(decorative) .. ", " .. reach .. ")"
 end
 
 function terrain.mask_off_aquilo_territory(decorative, decorative_type)
@@ -94,8 +94,8 @@ end
 
 -- Gleba tile allowed northward into the mixing band: alive once the transition
 -- value passes threshold (lower/negative = starts further north).
-function terrain.mask_gleba_early(decorative, decorative_type, threshold)
-  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_gleba_early(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
+function terrain.mask_gleba_fade(decorative, decorative_type, threshold)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_gleba_fade(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
 end
 
 -- Gleba water may start at the Nauvis water cut line (region -10) so southern
@@ -121,11 +121,11 @@ function terrain.mask_vulcano_terrain(decorative, decorative_type)
 end
 
 -- Volcano decoratives feather past the terrain edge, like Gleba decoratives
--- feather past the border with eon_mask_gleba_early: volcano terrain sits at
+-- feather past the border with eon_mask_gleba_fade: volcano terrain sits at
 -- eon_mountain_volcano_spots above ~0.46, so a lower threshold widens the
 -- band (higher/wider = further out, capped by the spots' basement radius).
-function terrain.mask_volcano_early(decorative, decorative_type, threshold)
-  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_volcano_early(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
+function terrain.mask_volcano_fade(decorative, decorative_type, threshold)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_volcano_fade(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
 end
 
 
@@ -367,18 +367,18 @@ terrain.mask_aquilo_territory("fluorine-vent", "resource")
 
 -- mask aquilo decoratives (feathered past the territory edge: bergs and drifts
 -- onto northern land, floaters onto Nauvis water; narrow bands with falloff)
-terrain.mask_aquilo_land_early("lithium-iceberg-medium", "optimized-decorative", 1.5)
-terrain.mask_aquilo_land_early("lithium-iceberg-small", "optimized-decorative", 1.5)
-terrain.mask_aquilo_land_early("lithium-iceberg-tiny", "optimized-decorative", 1.5)
-terrain.mask_aquilo_water_early("floating-iceberg-large", "optimized-decorative", 2)
-terrain.mask_aquilo_water_early("floating-iceberg-small", "optimized-decorative", 2)
-terrain.mask_aquilo_land_early("aqulio-ice-decal-blue", "optimized-decorative", 1.5)
-terrain.mask_aquilo_land_early("aqulio-snowy-decal", "optimized-decorative", 1.5)
-terrain.mask_aquilo_land_early("snow-drift-decal", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_fade("lithium-iceberg-medium", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_fade("lithium-iceberg-small", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_fade("lithium-iceberg-tiny", "optimized-decorative", 1.5)
+terrain.mask_aquilo_water_fade("floating-iceberg-large", "optimized-decorative", 2)
+terrain.mask_aquilo_water_fade("floating-iceberg-small", "optimized-decorative", 2)
+terrain.mask_aquilo_land_fade("aqulio-ice-decal-blue", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_fade("aqulio-snowy-decal", "optimized-decorative", 1.5)
+terrain.mask_aquilo_land_fade("snow-drift-decal", "optimized-decorative", 1.5)
 
--- mask aquilo entities (never onto volcanoes: the land_early guard handles it)
-terrain.mask_aquilo_land_early("lithium-iceberg-huge", "simple-entity", 1.5)
-terrain.mask_aquilo_land_early("lithium-iceberg-big", "simple-entity", 1.5)
+-- mask aquilo entities (never onto volcanoes: the land_fade guard handles it)
+terrain.mask_aquilo_land_fade("lithium-iceberg-huge", "simple-entity", 1.5)
+terrain.mask_aquilo_land_fade("lithium-iceberg-big", "simple-entity", 1.5)
 
 -- Aquilo decoratives feather onto volcano rims, but only on the aquilo side:
 -- gated by the same territory mask the tiles use (eon_aquilo_mask), so ice and
@@ -620,13 +620,13 @@ data:extend({
     -- floored at 0.3, off-gleba/off-volcano guards keep them out of
     -- southern wetlands and off volcanoes.
     type = "noise-function",
-    name = "eon_mask_aquilo_land_early",
+    name = "eon_mask_aquilo_land_fade",
     parameters = {"expression", "reach"},
     expression = "eon_mask_off_vulcano_terrain(eon_mask_off_gleba_territory(eon_fade(expression, -eon_aquilo_base(eon_aquilo_max_elevation + reach, 100), -30, 0, 0.3)))"
   },
   {
     type = "noise-function",
-    name = "eon_mask_aquilo_water_early",
+    name = "eon_mask_aquilo_water_fade",
     parameters = {"expression", "reach"},
     expression = "eon_mask_off_vulcano_terrain(eon_mask_off_gleba_territory(eon_fade(expression, -eon_aquilo_base(eon_aquilo_ammonia_depth + reach, 200), -60, 0, 0.3)))"
   },
@@ -813,19 +813,19 @@ terrain.mask_gleba_territory("lowland-red-vein-dead", "tile")
 terrain.mask_gleba_territory("lowland-red-infection", "tile")
 -- Dry high ground fingers furthest north into Nauvis; wet lowland and
 -- wetlands start at the line; water leads it (see water mask, -10).
-terrain.mask_gleba_early("midland-turquoise-bark", "tile", -35)
-terrain.mask_gleba_early("midland-turquoise-bark-2", "tile", -35)
-terrain.mask_gleba_early("midland-cracked-lichen", "tile", -35)
-terrain.mask_gleba_early("midland-cracked-lichen-dull", "tile", -35)
-terrain.mask_gleba_early("midland-cracked-lichen-dark", "tile", -35)
-terrain.mask_gleba_early("midland-yellow-crust", "tile", -35)
-terrain.mask_gleba_early("midland-yellow-crust-2", "tile", -35)
-terrain.mask_gleba_early("midland-yellow-crust-3", "tile", -35)
-terrain.mask_gleba_early("midland-yellow-crust-4", "tile", -35)
-terrain.mask_gleba_early("highland-dark-rock", "tile", -70)
-terrain.mask_gleba_early("highland-dark-rock-2", "tile", -70)
-terrain.mask_gleba_early("highland-yellow-rock", "tile", -70)
-terrain.mask_gleba_early("pit-rock", "tile", -35)
+terrain.mask_gleba_fade("midland-turquoise-bark", "tile", -35)
+terrain.mask_gleba_fade("midland-turquoise-bark-2", "tile", -35)
+terrain.mask_gleba_fade("midland-cracked-lichen", "tile", -35)
+terrain.mask_gleba_fade("midland-cracked-lichen-dull", "tile", -35)
+terrain.mask_gleba_fade("midland-cracked-lichen-dark", "tile", -35)
+terrain.mask_gleba_fade("midland-yellow-crust", "tile", -35)
+terrain.mask_gleba_fade("midland-yellow-crust-2", "tile", -35)
+terrain.mask_gleba_fade("midland-yellow-crust-3", "tile", -35)
+terrain.mask_gleba_fade("midland-yellow-crust-4", "tile", -35)
+terrain.mask_gleba_fade("highland-dark-rock", "tile", -70)
+terrain.mask_gleba_fade("highland-dark-rock-2", "tile", -70)
+terrain.mask_gleba_fade("highland-yellow-rock", "tile", -70)
+terrain.mask_gleba_fade("pit-rock", "tile", -35)
 
 -- Decor-first transition: these water plants lead the tile line by ~50
 -- tiles so shores feather instead of cutting, using the gleba _fade helper
@@ -908,15 +908,15 @@ terrain.mask_gleba_territory("iron-stromatolite", "simple-entity")
 terrain.mask_gleba_territory("copper-stromatolite", "simple-entity")
 
 -- Gleba trees reach north with the midland shelf.
-terrain.mask_gleba_early("cuttlepop", "tree", -35)
-terrain.mask_gleba_early("slipstack", "tree", -35)
-terrain.mask_gleba_early("funneltrunk", "tree", -35)
-terrain.mask_gleba_early("hairyclubnub", "tree", -35)
-terrain.mask_gleba_early("teflilly", "tree", -35)
-terrain.mask_gleba_early("lickmaw", "tree", -35)
-terrain.mask_gleba_early("stingfrond", "tree", -35)
-terrain.mask_gleba_early("boompuff", "tree", -35)
-terrain.mask_gleba_early("sunnycomb", "tree", -35)
+terrain.mask_gleba_fade("cuttlepop", "tree", -35)
+terrain.mask_gleba_fade("slipstack", "tree", -35)
+terrain.mask_gleba_fade("funneltrunk", "tree", -35)
+terrain.mask_gleba_fade("hairyclubnub", "tree", -35)
+terrain.mask_gleba_fade("teflilly", "tree", -35)
+terrain.mask_gleba_fade("lickmaw", "tree", -35)
+terrain.mask_gleba_fade("stingfrond", "tree", -35)
+terrain.mask_gleba_fade("boompuff", "tree", -35)
+terrain.mask_gleba_fade("sunnycomb", "tree", -35)
 -- Water-cane feathers instead of banding: density scales up across the
 -- handoff (present thinly in Nauvis deepwater north of the line, full in
 -- Gleba shallows south), so no abrupt start/stop. Explicitly off volcano
@@ -1251,7 +1251,7 @@ data:extend({
   {
     -- Gleba side of the mixing band: alive once transition > threshold.
     type = "noise-function",
-    name = "eon_mask_gleba_early",
+    name = "eon_mask_gleba_fade",
     parameters = {"expression", "threshold"},
     expression = "if(eon_gleba_region(threshold), expression, -inf)"
   },
@@ -1402,42 +1402,49 @@ terrain.mask_vulcano_coverage("big-volcanic-rock", "simple-entity")
 -- wider than mid details), mirroring the staggered Gleba transition. Chimneys
 -- and big rocks stay on tight coverage above; lava fire stays on terrain.
 -- Outer debris band
-terrain.mask_volcano_early("medium-volcanic-rock", "optimized-decorative", 0.40)
-terrain.mask_volcano_early("small-volcanic-rock", "optimized-decorative", 0.40)
-terrain.mask_volcano_early("tiny-volcanic-rock", "optimized-decorative", 0.40)
-terrain.mask_volcano_early("tiny-rock-cluster", "optimized-decorative", 0.40)
-terrain.mask_volcano_early("vulcanus-sand-decal", "optimized-decorative", 0.40)
-terrain.mask_volcano_early("vulcanus-dune-decal", "optimized-decorative", 0.40)
-terrain.mask_volcano_early("waves-decal", "optimized-decorative", 0.40)
+terrain.mask_volcano_fade("medium-volcanic-rock", "optimized-decorative", 0.40)
+terrain.mask_volcano_fade("small-volcanic-rock", "optimized-decorative", 0.40)
+terrain.mask_volcano_fade("tiny-volcanic-rock", "optimized-decorative", 0.40)
+terrain.mask_volcano_fade("tiny-rock-cluster", "optimized-decorative", 0.40)
+terrain.mask_volcano_fade("vulcanus-sand-decal", "optimized-decorative", 0.40)
+terrain.mask_volcano_fade("vulcanus-dune-decal", "optimized-decorative", 0.40)
+terrain.mask_volcano_fade("waves-decal", "optimized-decorative", 0.40)
 -- Mid detail band
-terrain.mask_volcano_early("vulcanus-rock-decal-large", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("vulcanus-crack-decal", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("vulcanus-crack-decal-large", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("vulcanus-crack-decal-huge-warm", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("vulcanus-crack-decal-warm", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("sulfur-stain", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("sulfur-stain-small", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("sulfuric-acid-puddle", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("sulfuric-acid-puddle-small", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("crater-small", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("crater-large", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("pumice-relief-decal", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("small-sulfur-rock", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("tiny-sulfur-rock", "optimized-decorative", 0.43)
-terrain.mask_volcano_early("sulfur-rock-cluster", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("vulcanus-rock-decal-large", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("vulcanus-crack-decal", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("vulcanus-crack-decal-large", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("vulcanus-crack-decal-huge-warm", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("vulcanus-crack-decal-warm", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("sulfur-stain", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("sulfur-stain-small", "optimized-decorative", 0.43)
+-- Sulfuric acid puddles stay TIGHT inside volcano terrain: their vaniln region
+-- (vulcanus_sulfuric_acid_region_patchy) is positive over the broad pre-biome
+-- around the volcano, so a feathered mask rendered them on plain ground just
+-- outside the rim. Hard mask, no fade band.
+terrain.mask_vulcano_terrain("sulfuric-acid-puddle", "optimized-decorative")
+terrain.mask_vulcano_terrain("sulfuric-acid-puddle-small", "optimized-decorative")
+terrain.mask_volcano_fade("crater-small", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("crater-large", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("pumice-relief-decal", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("small-sulfur-rock", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("tiny-sulfur-rock", "optimized-decorative", 0.43)
+terrain.mask_volcano_fade("sulfur-rock-cluster", "optimized-decorative", 0.43)
 -- Lava fire stays on volcano terrain
 terrain.mask_vulcano_terrain("vulcanus-lava-fire", "optimized-decorative")
--- Calcite stains pair with calcite ore wherever it grows (inside or outside
--- volcanoes), shaped like vanilla Vulcanus: transplants of vanilla's
--- vulcanus_calcite_stain(_small), identical formulas with only the region
--- input swapped (vanilla tracks ashlands ore; ours tracks nauvis ore).
--- eon_calcite is 0..1 nauvis scatter; eon_calcite_region maps it onto the
--- -1..1 region scale the vanilla formulas expect.
+-- Calcite stains pair with the calcite ore (see eon_calcite_volcano_region in
+-- resources-updates.lua), shaped like vanilla Vulcanus: transplants of vanilla's
+-- vulcanus_calcite_stain(_small), identical formulas with only the region input
+-- swapped. The ore region is fed through RAW (same scale as vanilla vulcanus:
+-- inside favored spots ~0..1 with a -1 basement off-spot), so the small stain
+-- fills each patch exactly like vanilla (threshold at region > -0.07) including
+-- the rim tiles where a patch spills past the volcano onto plain ground; the
+-- large stain formula is as dead in vanilla as it is here (its max is
+-- min(0.5,..) - 0.8 <= -0.3).
 data:extend({
   {
     type = "noise-expression",
     name = "eon_calcite_region",
-    expression = "eon_calcite * 2 - 1"
+    expression = "eon_calcite_volcano_region"
   },
   {
     type = "noise-expression",
@@ -1788,11 +1795,11 @@ data:extend({
   },
   {
     -- Volcano natives blend off their own terrain edge (see
-    -- terrain.mask_volcano_early): the same eon_fade with the spot field
+    -- terrain.mask_volcano_fade): the same eon_fade with the spot field
     -- inverted — 0.46 - spots grows outward from the terrain edge (~0.46),
     -- full inside, fading to a 0.25 floor at the outer reach (threshold).
     type = "noise-function",
-    name = "eon_mask_volcano_early",
+    name = "eon_mask_volcano_fade",
     parameters = {"expression", "threshold"},
     expression = "eon_fade(expression, 0.46 - eon_mountain_volcano_spots, 0, 0.46 - threshold, 0.25)"
   },
@@ -1831,7 +1838,7 @@ data:extend({
     expression = "if(eon_gleba_transition > threshold, -inf, if(eon_aquilo_mask, -inf, if(eon_ammonia_mask, -inf, if(eon_vulcanus_terrain, -inf, expression * clamp(threshold - eon_gleba_transition, 0, 1)))))"
   },
   {
-    -- Gleba native that blends north instead of the hard mask_gleba_early
+    -- Gleba native that blends north instead of the hard mask_gleba_fade
     -- switch: full in gleba, fading across the first ~3 transition (≈10-30
     -- tiles) north of the line, plus a short volcano edge ring on the gleba
     -- side only (transition >= 0, spots 0.46-0.52). The old -40 threshold

@@ -137,23 +137,36 @@ data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["t
 -- autoplace_controls
 data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["sulfuric_acid_geyser"] = {}
 
--- Mask resources from ammonia ocean (and off aquilo land / gleba: calcite is a
--- volcano resource, not an aquilo/gleba one).
-terrain.mask_resource_territory_allow_volcano("calcite", "resource")
-do
-  local current = data.raw.resource["calcite"].autoplace.probability_expression
-  data.raw.resource["calcite"].autoplace.probability_expression =
-      "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(eon_mask_off_gleba_territory(" .. current .. ")))"
-end
--- Tungsten is wired to volcano flanks below (not masked here).
+-- Tungsten and calcite are wired to the volcano expressions below (not masked
+-- here): they render only on volcano ground, so aquilo/ammonia/gleba exclusions
+-- ride inside the probability expressions themselves.
 
 -- START: Fix Resource spawning
 data.raw.resource["calcite"].autoplace.has_starting_area_placement = false -- Does nothing but noise expression vulcanus_starting_calcite removes starter spot
 data.raw["noise-expression"]["vulcanus_starting_calcite"].expression = "-inf"
-data.raw["noise-expression"]["vulcanus_calcite_probability"].expression = "eon_mask_off_ammonia_ocean((control:calcite:size > 0) * (1000 * ((0.5 + vulcanus_calcite_region) * random_penalty_between(0.9, 1, 1) - 1)))"
+-- Calcite grows near volcano ground (vanilla Vulcanus behavior), guarded only
+-- by the smooth near-volcano field below: spots anchor on/around volcano
+-- terrain and a patch may sit partly on the skirt / plain ground just outside
+-- the volcano (and outside demolisher territory), never far from one.
+data.raw.resource["calcite"].autoplace.probability_expression =
+    "eon_mask_off_aquilo_territory(eon_mask_resource_territory(eon_mask_off_ammonia_ocean((control:calcite:size > 0) * (1000 * ((1 + eon_calcite_volcano_region) * random_penalty_between(0.9, 1, 1) - 1)))))"
+-- Richness must derive from the SAME region as probability (vanilla Vulcanus
+-- does this too): entities only spawn where richness > 0, so the old
+-- nauvis-scatter richness (default-calcite-patches) silently vetoed volcano
+-- patches. Flat in distance like vanilla calcite (vanilla grows richer only
+-- through patch SIZE via min(1.2, vulcanus_ore_dist), never a per-tile ramp),
+-- at 2500 -- below tungsten's 3500 -- so calcite is never richer than tungsten.
+-- This replaces the dead vulcanus_calcite_probability override that nothing
+-- referenced.
+data.raw.resource["calcite"].autoplace.richness_expression =
+    "eon_calcite_volcano_region * random_penalty_between(0.9, 1, 1) * 2500 * control:calcite:richness / vulcanus_calcite_size"
 
 data.raw.resource["sulfuric-acid-geyser"].autoplace.has_starting_area_placement = false -- Does nothing but noise expression vulcanus_starting_sulfur removes starter spot
-data.raw["noise-expression"]["vulcanus_sulfuric_acid_geyser_probability"].expression = "(control:sulfuric_acid_geyser:size > 0) * (0.005 * ((vulcanus_sulfuric_acid_region_patchy > 0) + 2 * eon_updated_volcanic_folds))"
+-- Sulfuric acid geysers stay TIGHT inside volcano terrain (same leak class
+-- as the puddles: the vanilla geyser region is positive over the broad
+-- pre-biome around the volcano). Hard mask via eon_mask_vulcano_terrain, no
+-- feathering.
+data.raw["noise-expression"]["vulcanus_sulfuric_acid_geyser_probability"].expression = "eon_mask_vulcano_terrain((control:sulfuric_acid_geyser:size > 0) * (0.005 * ((vulcanus_sulfuric_acid_region_patchy > 0) + 2 * eon_updated_volcanic_folds)))"
 data.raw["noise-expression"]["vulcanus_starting_sulfur"].expression = "-inf"
 
 data.raw.resource["tungsten-ore"].autoplace.has_starting_area_placement = false -- Does nothing but noise expression vulcanus_starting_tungsten removes starter spot
@@ -201,6 +214,34 @@ data:extend({
     type = "noise-expression",
     name = "eon_tungsten_ore_region",
     expression = "eon_tungsten_volcano_region"
+  },
+  {
+    -- Calcite favorability: the volcano spot field ITSELF, smoothed so it is
+    -- flat 1 across the whole volcano (folds + skirt -- acceptance nowhere near
+    -- the rim), fading across a ~1-2 tile ring just past the rendered rim: that
+    -- ring is where a patch can spill a few tiles onto plain ground OUTSIDE the
+    -- volcano (and outside demolisher territory), a breadcrumb pointing at the
+    -- volcano. Lava core and water excluded so anchors stay on mineable ground.
+    type = "noise-expression",
+    name = "eon_calcite_volcano_favorability",
+    expression = "if(eon_volcano_lava_core > 0, 0, if(eon_updated_water <= 0, if(eon_updated_deepwater <= 0, clamp((eon_mountain_volcano_spots - 0.30) / 0.15, 0, 1), 0), 0))"
+  },
+  {
+    -- Vanilla vulcanus_place_non_metal_spots directly, candidate count 6 so a
+    -- volcano's cells nearly always catch a candidate (~90% of volcanoes get at
+    -- least one patch); the cost is several accepted spots per volcano, so
+    -- patches are smaller (size 20 vs vanilla's 25 -- less richness per patch)
+    -- and per-tile richness is 2500 not 3500, keeping each volcano's total
+    -- calcite about where it was while covering more volcanoes. Nearby accepted
+    -- spots merge into chunky patches; some volcanoes miss entirely, some carry
+    -- 2-3 -- the dice the map wants (water and thin rims clip a few more).
+    -- Frequency is nudged x1.5 so the candidate rule still holds at the low end
+    -- of the slider. min(2*favor-1, ...) clips render back toward the favor
+    -- plateau, so a patch may spill onto the flat skirt / rim ground around the
+    -- volcano but never drifts away from it.
+    type = "noise-expression",
+    name = "eon_calcite_volcano_region",
+    expression = "max(vulcanus_starting_calcite, min(1 - vulcanus_starting_circle, vulcanus_place_non_metal_spots(749, 6, 1, vulcanus_calcite_size * min(1.2, vulcanus_ore_dist) * 20, control:calcite:frequency * 1.5, max(eon_calcite_volcano_favorability, 0.25))))"
   },
 })
 -- NOTE: this replaces the dead vulcanus_tungsten_ore_probability override that

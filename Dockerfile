@@ -23,7 +23,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     node --version && npm --version
 
 # ── npm global packages ─────────────────────────────────────────────────────
-RUN npm install -g @earendil-works/pi-coding-agent@0.85.1 && \
+RUN npm install -g @earendil-works/pi-coding-agent@0.86.1 && \
     pi --version
 
 RUN mkdir -p /workspace

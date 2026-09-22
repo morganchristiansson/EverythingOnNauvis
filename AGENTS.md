@@ -191,7 +191,7 @@ Demolisher territory design (what the current code does, why):
 - Rule of thumb: a decorative whose prototype lives in base is Nauvis-native; anything in
   space-age belongs to its namesake biome. `map-generation/terrain.lua` then applies the
   masks: Nauvis natives get `mask_nauvis_territory`/`mask_nauvis_deep` (+ the volcano-rim
-  feather loop), Gleba natives get `mask_gleba_territory`/`mask_gleba_early`, etc. Never
+  feather loop), Gleba natives get `mask_gleba_territory`/`mask_gleba_fade`, etc. Never
   gleba-confine a Nauvis native (`mask_gleba_territory("green-*-grass", …)` was the bug that
   carpeted all of Gleba with Nauvis grass).
 - **Exception — shared prototypes**: vanilla Gleba itself rebinds ~15 base prototypes to
@@ -240,7 +240,7 @@ ammonia it is `-inf`, elsewhere the signed snapshot alone, no product of two). U
 `if(eon_gleba_transition > t, -inf, ... if(mask, -inf, ... expression * clamp(..., 0, 1)))` —
 exclusions replace, only the 0..1 feather multiplies.
 
-**Tile-name trap:** gleba highland tiles reach ~700 tiles NORTH into nauvis (`mask_gleba_early
+**Tile-name trap:** gleba highland tiles reach ~700 tiles NORTH into nauvis (`mask_gleba_fade
 (-70)` — the wide mixing band by design). A grass tuft on a `highland-dark-rock` tile in that
 band is NOT a leak (transition ≤ 0 there = functionally nauvis). Judge a position's biome by
 `eon_gleba_transition` / territory, never by the tile name — the probe classifies by transition
@@ -252,8 +252,8 @@ over the last ~1 transition (~10 tiles) before the gleba line, zero south of it,
 volcano ground (volcanoes are harsh), zero on aquilo/ammonia. `eon_mask_gleba_territory_fade(e, t)`
 (transition flora leaders, t = -1): the mirror. No volcano rings, no boost, no floors — every
 attempt at those read as "covered" in live tests. `eon_fade(expression, field, lo, hi, floor)`
-is the generic primitive for the aquilo/volcano-native blends (`eon_mask_volcano_early`,
-`eon_mask_aquilo_*_early`) — full while field ≤ lo, linear fade to floor by field = hi, `-inf`
+is the generic primitive for the aquilo/volcano-native blends (`eon_mask_volcano_fade`,
+`eon_mask_aquilo_*_fade`) — full while field ≤ lo, linear fade to floor by field = hi, `-inf`
 past hi (the expression is passed INSIDE, so its `-inf` replaces — sign-safe).
 
 **Units gotcha:** `eon_gleba_transition` grows ~0.1-0.5 per tile, so a fade band of N transition
