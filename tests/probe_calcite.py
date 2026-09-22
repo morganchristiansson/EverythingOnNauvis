@@ -121,11 +121,11 @@ def main():
     print("patch center tiles:", dict(Counter(p["center_tile"] for p in d["patches"])))
     print("volcanoes:")
     for v in sorted(d["volcanoes"], key=lambda v: v["nearest_patch"]):
-        print(f"  ({v['x']},{v['y']}) samples={v['n']} lava={v['lava']} "
-              f"nearest_patch={v['nearest_patch']} "
-              f"patches_450={v.get('patches_within_450')} rich_450={v.get('richness_volcano_450')} "
-              f"geysers_450={v.get('geysers_near_450')} amt={v.get('geyser_amount_450')} "
-              f"puddles_450={v.get('puddles_near_450')} stains_450={v.get('stains_near_450')}")
+        bins = v.get('cliff_bins', [])
+        nb = sum(bins)
+        print(f"  ({v['x']},{v['y']}) samples={v['n']} lava={v['lava']} cliffs={nb} "
+              f"bins={bins} geysers={v.get('geysers_near_450')}")
+    print(f"cliffs inside lava: {d['acid'].get('cliffs_in_lava', {}).get('total')}")
     print("largest patches:")
     for p in sorted(d["patches"], key=lambda p: -p["richness"])[:12]:
         print(f"  ({p['x']},{p['y']}) n={p['entities']} rich={p['richness']} "

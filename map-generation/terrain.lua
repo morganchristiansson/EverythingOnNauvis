@@ -1299,7 +1299,7 @@ data.raw["noise-expression"]["gleba_elevation"].local_expressions = nil
 -- slime on dry highland near shores and is removed.
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["moisture"] = "eon_moisture_blended"
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["aux"] = "eon_aux_blended"
-data.raw.planet["nauvis"].map_gen_settings.property_expression_names["elevation"] = "eon_elevation_blended"
+data.raw.planet["nauvis"].map_gen_settings.property_expression_names["elevation"] = "eon_elevation_surface"
 
 --------------------------------------------------------------------------------
 -- MARK: Fix Vulcanus related map gen settings
@@ -1530,10 +1530,18 @@ data:extend({
     expression = "clamp((distance - 425 * eon_starting_radius) / (425 * eon_starting_radius), 0, 1)"
   },
   {
-    -- Volcanoes grow bigger further from spawn.
+    -- Volcano size vs distance: small near spawn so the nearest cones can
+    -- never reach spawn (the spawn gate lets volcanoes form from ~425 tiles
+    -- out; base radius ~424px, so an unscaled default-size cone could swallow
+    -- spawn -- the old 0.8-bottom ramp made that all but certain for big
+    -- systems), growing to full size by 4000 tiles. Smooth (distance-only): a
+    -- random size term tried here broke map-gen compilation (spot noise
+    -- parameters must be compile-time constants; the per-spot random is not
+    -- compile-safe), so size variety comes from the two spot systems plus the
+    -- distance ramp.
     type = "noise-expression",
     name = "eon_volcano_size_dist",
-    expression = "0.8 + 0.4 * min(distance / 5000, 1)"
+    expression = "0.30 + 0.70 * min(distance / 4000, 1)"
   },
   {
     -- Effective volcanism (size ONLY): vanilla couples the frequency slider in
@@ -1757,12 +1765,43 @@ data:extend({
     expression = "max(eon_vulcanus_core_at16, (eon_updated_volcanic_folds_flat_at16 > 0) * (eon_terr_volcano_spots > 0.6))"
   },
   {
-    -- Steeper slope crowding terrace rings near the lava for cliff contours
-    -- (see eon_cliff_elevation). Closed rims are intended: kite the demolisher
-    -- to blast access.
+    -- Volcano profile amplitude: base 300 elevation units (7 cliff rings on
+    -- the nauvis 40-unit ladder), scaled by the distance-driven size growth
+    -- and big-spot-system dominance so ring SPACING stays uniform across
+    -- volcano sizes (bigger cone -> higher peak, same slope).
+    type = "noise-expression",
+    name = "eon_volcano_relief",
+    expression = "eon_volcano_size_dist / 0.8 * (1 + 0.67 * clamp((eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25} - 0.5) / 0.25, 0, 1))"
+  },
+  {
+    -- FFF-390 cone: elevation rises from the folds foot (volcano spots 0.54)
+    -- to a crest at the lava edge (0.86, where eon_lava_mountains_range begins)
+    -- and drops back to zero toward the crater center (1.18+) -- a cone with
+    -- a depression at the top, the classic caldera. Feeds the tile elevation
+    -- so the lava visibly sits in a bowl below the rim.
+    type = "noise-expression",
+    name = "eon_volcano_cone",
+    expression = "clamp(min(eon_mountain_volcano_spots - 0.54, 1.18 - eon_mountain_volcano_spots) / 0.32, 0, 1)"
+  },
+  {
+    -- Elevation the SURFACE tiles render at (property "elevation"): the
+    -- blended nauvis/gleba field plus the volcano cone. Volcanoes become real
+    -- raised cones with a depressed caldera instead of flat discs wearing
+    -- cliff rings; everything off volcano ground is untouched.
+    type = "noise-expression",
+    name = "eon_elevation_surface",
+    expression = "eon_elevation_blended + 300 * eon_volcano_relief * eon_volcano_cone"
+  },
+  {
+    -- Cliff rings follow the same cone: staircase up the CLIMB side (spots
+    -- 0.54-0.86) only, then a FLAT PLATEAU from the crest inward -- no rings
+    -- descend into the caldera, so the top-most ring is outward-facing and
+    -- the caldera interior stays clean (the lava itself shows the depression
+    -- through eon_elevation_surface). Relief-scaled amplitude keeps the ring
+    -- spacing uniform across volcano sizes (see eon_volcano_relief).
     type = "noise-expression",
     name = "eon_volcano_cliff_spike",
-    expression = "300 * clamp((eon_mountain_volcano_spots - 0.60) / 0.25, 0, 1)"
+    expression = "300 * eon_volcano_relief * clamp((min(eon_mountain_volcano_spots, 0.86) - 0.54) / 0.32, 0, 1)"
   },
   {
     -- Cliff elevation follows the same blend as the tiles: Nauvis contours

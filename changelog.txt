@@ -2,6 +2,23 @@
 Version: 0.1.10
 Date: 2026-09-XX
   Changes:
+    - Volcanoes are real cones now: the surface elevation property carries the
+      FFF-390 cone profile (min(x, P - x)) -- tiles rise from the folds foot to
+      a crest at the lava edge and drop back toward the center, so the lava
+      sits in a visible caldera bowl below the rim instead of a flat disc
+      wearing cliff rings. Cliff rings staircase only the climb side and
+      plateau from the crest inward, so the top ring is outward-facing and no
+      rings descend into the lava (probe: zero cliffs on lava tiles). Ring
+      spacing stays uniform across volcano sizes: the 300-unit relief amplitude
+      scales with the distance-driven size growth and big-spot-system dominance
+      (bigger cone, higher peak, same slope).
+    - Volcano size vs distance: ramps from 0.30 near spawn to full by 4000
+      tiles, so the nearest cones are small and can never swallow spawn (old
+      0.8-bottom ramp + ~424px base radius let big-system cones reach it).
+      Per-volcano random size was attempted but rejected: spot_noise parameters
+      must be compile-time constants, and a random term in the spot radius
+      broke map-gen compilation (surfaced as "Expected a constant: spotNoise[3]"
+      on unrelated early-compiled expressions like barnacles-decal).
     - Volcano frequency is a pure density control again: vanilla couples it
       into eon_volcanism as a divider (cranking frequency shrank every volcano
       -- at 600% ~129px radius vs 300), decoupled, and the density curve rescaled
