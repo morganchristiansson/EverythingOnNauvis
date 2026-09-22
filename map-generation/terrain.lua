@@ -5,6 +5,8 @@ local data_util = require("data-util")
 
 local terrain = {}
 
+log("[EoN-morganc] build marker: fades-v7-signsafe")
+
 function terrain.mask_nauvis_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_nauvis_territory(" .. data_util.generate_eon_name(decorative) .. ")"
 end
@@ -14,6 +16,21 @@ end
 -- Keeps the aquilo/volcano exclusions of the plain territory mask.
 function terrain.mask_nauvis_deep(decorative, decorative_type, threshold)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_nauvis_deep(" .. data_util.generate_eon_name(decorative) .. ", " .. threshold .. ")"
+end
+
+-- Nauvis native that blends into neighbouring biomes instead of hard-
+-- cutting: one evaluation of the vanilla pattern times per-boundary fades
+-- (eon_mask_nauvis_territory_fade). threshold = where the gleba blend ends
+-- (0 = full on nauvis, fading across the first 10 transition into gleba).
+function terrain.mask_nauvis_territory_fade(decorative, decorative_type, threshold)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_nauvis_territory_fade(" .. data_util.generate_eon_name(decorative) .. ", " .. (threshold or 0) .. ")"
+end
+
+-- Gleba native that blends north into the mixing band instead of the hard
+-- mask_gleba_early switch (eon_mask_gleba_territory_fade). threshold = where
+-- the north blend ends (-40 for the transition flora leaders).
+function terrain.mask_gleba_territory_fade(decorative, decorative_type, threshold)
+  data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_gleba_territory_fade(" .. data_util.generate_eon_name(decorative) .. ", " .. (threshold or 0) .. ")"
 end
 
 function terrain.mask_off_nauvis_territory(decorative, decorative_type)
@@ -127,7 +144,7 @@ data.raw.tile["deepwater"].autoplace.probability_expression = "eon_updated_deepw
 -- START: Mask nauvis territory on all autoplace settings
 -- Remove nauvis trees from eon_vulcanus_terrain
 -- data.raw["noise-expression"]["trees_forest_path_cutout"].expression = "mask_off_vulcano_terrain(min(nauvis_bridge_paths, nauvis_hills_paths, forest_paths))"
-data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "max(eon_mask_nauvis_deep(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 10), eon_mask_off_vulcano_terrain(eon_mask_nauvis_aquilo_fringe(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1, 1.5)), if(eon_mountain_volcano_spots > 0.2, eon_mask_off_aquilo_territory(4 * eon_mask_off_ammonia_ocean(trees_forest_path_cutout * 0.3 + tree_small_noise * 0.1) * clamp((0.6 - eon_mountain_volcano_spots) / 0.4, 0, 1)), -inf))"
+data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression = "eon_mask_nauvis_territory(" .. data.raw["noise-expression"]["trees_forest_path_cutout_faded"].expression .. ")"
 
 -- Dead trees only grow on nauvis territory (same fix as EverythingOnNauvis-Patches).
 -- Masked at expression level like trees_forest_path_cutout_faded: tree_dead_grey_trunk
@@ -146,6 +163,7 @@ data.raw["fish"]["fish"].autoplace.probability_expression = "eon_mask_nauvis_ter
 terrain.mask_nauvis_territory("cracked-mud-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("dark-mud-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("lichen-decal", "optimized-decorative")
+terrain.mask_nauvis_territory("shroom-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("light-mud-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("small-rock", "optimized-decorative")
 terrain.mask_nauvis_territory("small-sand-rock", "optimized-decorative")
@@ -165,10 +183,13 @@ terrain.mask_nauvis_territory("garballo-mini-dry", "optimized-decorative")
 terrain.mask_nauvis_territory("green-asterisk", "optimized-decorative")
 terrain.mask_nauvis_territory("green-asterisk-mini", "optimized-decorative")
 terrain.mask_nauvis_territory("green-bush-mini", "optimized-decorative")
-terrain.mask_nauvis_territory("green-carpet-grass", "optimized-decorative")
+-- Grass tufts feather across the mixing band like the grass tiles they sit
+-- on (same +10 threshold): full strength on Nauvis, fading into the Gleba
+-- transition — not hard-cut at the line, never carpeting deep Gleba.
+terrain.mask_nauvis_territory_fade("green-carpet-grass", "optimized-decorative", 0)
 terrain.mask_nauvis_territory("green-croton", "optimized-decorative")
 terrain.mask_nauvis_territory("green-desert-bush", "optimized-decorative")
-terrain.mask_nauvis_territory("green-hairy-grass", "optimized-decorative")
+terrain.mask_nauvis_territory_fade("green-hairy-grass", "optimized-decorative", 0)
 terrain.mask_nauvis_territory("green-pita", "optimized-decorative")
 terrain.mask_nauvis_territory("green-pita-mini", "optimized-decorative")
 terrain.mask_nauvis_territory("green-small-grass", "optimized-decorative")
@@ -560,32 +581,20 @@ data:extend({
     expression = "if(eon_ammonia_mask, -inf, expression)"
   },
   {
-    -- Feather bands beyond aquilo territory: the same base fields with raised
-    -- ceilings reach further south (floating ice onto Nauvis water, bergs and
-    -- drifts onto northern land). Off-gleba AND off-volcano guards keep them
-    -- out of southern wetlands (low elevation would otherwise also match)
-    -- and off volcanoes (demolisher ground stays volcanic). Probability
-    -- fades with distance from the border via the base field value.
+    -- Aquilo natives blend onto northern land: same eon_fade over the
+    -- raised-ceiling base field (negated so it grows INTO the shore band),
+    -- floored at 0.3, off-gleba/off-volcano guards keep them out of
+    -- southern wetlands and off volcanoes.
     type = "noise-function",
     name = "eon_mask_aquilo_land_early",
     parameters = {"expression", "reach"},
-    expression = "if(eon_aquilo_base(eon_aquilo_max_elevation + reach, 100) > 0, eon_mask_off_vulcano_terrain(eon_mask_off_gleba_territory(expression * clamp(eon_aquilo_base(eon_aquilo_max_elevation + reach, 100) / 30, 0.3, 1))), -inf)"
+    expression = "eon_mask_off_vulcano_terrain(eon_mask_off_gleba_territory(eon_fade(expression, -eon_aquilo_base(eon_aquilo_max_elevation + reach, 100), -30, 0, 0.3)))"
   },
   {
     type = "noise-function",
     name = "eon_mask_aquilo_water_early",
     parameters = {"expression", "reach"},
-    expression = "if(eon_aquilo_base(eon_aquilo_ammonia_depth + reach, 200) > 0, eon_mask_off_vulcano_terrain(eon_mask_off_gleba_territory(expression * clamp(eon_aquilo_base(eon_aquilo_ammonia_depth + reach, 200) / 60, 0.3, 1))), -inf)"
-  },
-  {
-    -- Fringe ring just outside aquilo territory (widened land minus the
-    -- territory itself): Nauvis decoratives reach onto the icy shore fringe
-    -- so the north reads as progression too, mirroring the volcano rim.
-    -- Fades with distance like the other feather bands.
-    type = "noise-function",
-    name = "eon_mask_nauvis_aquilo_fringe",
-    parameters = {"expression", "reach"},
-    expression = "if(eon_aquilo_base(eon_aquilo_max_elevation + reach, 100) > 0, if(eon_aquilo_mask, -inf, expression * clamp(eon_aquilo_base(eon_aquilo_max_elevation + reach, 100) / 30, 0.3, 1)), -inf)"
+    expression = "eon_mask_off_vulcano_terrain(eon_mask_off_gleba_territory(eon_fade(expression, -eon_aquilo_base(eon_aquilo_ammonia_depth + reach, 200), -60, 0, 0.3)))"
   },
 })
 
@@ -781,14 +790,13 @@ terrain.mask_gleba_early("highland-yellow-rock", "tile", -70)
 terrain.mask_gleba_early("pit-rock", "tile", -35)
 
 -- Decor-first transition: these water plants lead the tile line by ~50
--- tiles so shores feather instead of cutting. None are collision-blocked
--- on deepwater (only green/brown-cup are, and those stay put).
+-- tiles so shores feather instead of cutting, using the gleba _fade helper
+-- (smooth northward blend, see the leaders loop at the end of this file).
+-- None are collision-blocked on deepwater (only green/brown-cup are, and
+-- those stay put).
 terrain.mask_gleba_territory("yellow-lettuce-lichen-1x1", "optimized-decorative")
 terrain.mask_gleba_territory("yellow-lettuce-lichen-3x3", "optimized-decorative")
 terrain.mask_gleba_territory("yellow-lettuce-lichen-6x6", "optimized-decorative")
-terrain.mask_gleba_early("yellow-lettuce-lichen-cups-1x1", "optimized-decorative", -40)
-terrain.mask_gleba_early("yellow-lettuce-lichen-cups-3x3", "optimized-decorative", -40)
-terrain.mask_gleba_early("yellow-lettuce-lichen-cups-6x6", "optimized-decorative", -40)
 terrain.mask_gleba_territory("green-lettuce-lichen-1x1", "optimized-decorative")
 terrain.mask_gleba_territory("green-lettuce-lichen-3x3", "optimized-decorative")
 terrain.mask_gleba_territory("green-lettuce-lichen-6x6", "optimized-decorative")
@@ -804,7 +812,6 @@ terrain.mask_gleba_territory("split-gill-red-2x2", "optimized-decorative")
 terrain.mask_gleba_territory("veins", "optimized-decorative")
 terrain.mask_gleba_territory("veins-small", "optimized-decorative")
 terrain.mask_gleba_territory("mycelium", "optimized-decorative")
-terrain.mask_gleba_early("coral-water", "optimized-decorative", -40)
 terrain.mask_gleba_territory("coral-land", "optimized-decorative")
 terrain.mask_gleba_territory("black-sceptre", "optimized-decorative")
 terrain.mask_gleba_territory("pink-phalanges", "optimized-decorative")
@@ -842,21 +849,17 @@ terrain.mask_gleba_territory("pale-lettuce-lichen-6x6", "optimized-decorative")
 terrain.mask_gleba_territory("pale-lettuce-lichen-water-1x1", "optimized-decorative")
 terrain.mask_gleba_territory("pale-lettuce-lichen-water-3x3", "optimized-decorative")
 terrain.mask_gleba_territory("pale-lettuce-lichen-water-6x6", "optimized-decorative")
+-- white-carpet-grass is a native Gleba decorative; the green carpet/hairy
+-- grasses are Nauvis-native and ride the mixing-band fade in the Nauvis
+-- section above. They used to be gleba-confined here, which carpeted all of
+-- Gleba territory with Nauvis grass (not native, reported bug).
+-- white-carpet-grass is a native Gleba decorative (so is fuchsia-pita; the
+-- green/red pitas, crotons, bushes, desert bushes and mud/lichen/shroom
+-- decals were also gleba-confined here but are Nauvis natives — same bug
+-- class as the grass: copied tiers of Nauvis flora carpeting Gleba).
+-- Natives stay gleba-masked; non-natives keep the mask_nauvis_territory they
+-- got in the Nauvis section above (upstream-style hard masks, no rim loop).
 terrain.mask_gleba_territory("white-carpet-grass", "optimized-decorative")
-terrain.mask_gleba_territory("green-carpet-grass", "optimized-decorative")
-terrain.mask_gleba_territory("green-hairy-grass", "optimized-decorative")
-terrain.mask_gleba_territory("light-mud-decal", "optimized-decorative")
-terrain.mask_gleba_territory("dark-mud-decal", "optimized-decorative")
-terrain.mask_gleba_territory("cracked-mud-decal", "optimized-decorative")
-terrain.mask_gleba_territory("red-desert-bush", "optimized-decorative")
-terrain.mask_gleba_territory("white-desert-bush", "optimized-decorative")
-terrain.mask_gleba_early("red-pita", "optimized-decorative", -40)
-terrain.mask_gleba_territory("green-bush-mini", "optimized-decorative")
-terrain.mask_gleba_territory("green-croton", "optimized-decorative")
-terrain.mask_gleba_territory("green-pita", "optimized-decorative")
-terrain.mask_gleba_territory("green-pita-mini", "optimized-decorative")
-terrain.mask_gleba_territory("lichen-decal", "optimized-decorative")
-terrain.mask_gleba_territory("shroom-decal", "optimized-decorative")
 
 -- mask gleba entities
 terrain.mask_gleba_territory("iron-stromatolite", "simple-entity")
@@ -880,9 +883,9 @@ terrain.mask_gleba_early("sunnycomb", "tree", -35)
 data.raw["tree"]["water-cane"].autoplace.probability_expression = "eon_mask_off_vulcano_terrain(eon_water_cane) * clamp((eon_gleba_transition + 60) / 100, 0, 1)"
 
 if not mods["Spaghetorio"] then
-  terrain.mask_gleba_early("honeycomb-fungus", "optimized-decorative", -40)
-  terrain.mask_gleba_early("honeycomb-fungus-1x1", "optimized-decorative", -40)
-  terrain.mask_gleba_early("honeycomb-fungus-decayed", "optimized-decorative", -40)
+  terrain.mask_gleba_territory("honeycomb-fungus", "optimized-decorative")
+  terrain.mask_gleba_territory("honeycomb-fungus-1x1", "optimized-decorative")
+  terrain.mask_gleba_territory("honeycomb-fungus-decayed", "optimized-decorative")
 end
 
 -- Let named transition flora grow on deepwater: their doodad collision locks
@@ -913,42 +916,16 @@ data.raw["autoplace-control"]["gleba_water"].can_be_disabled = true
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["eon_gleba_south_offset"] = "eon_gleba_south_offset"
 
 -- START: Update noise expressions
--- Mask gleba plants to gleba terrain
-data.raw["noise-expression"]["gleba_plants_noise"].expression = "eon_mask_gleba_territory(abs(multioctave_noise{x = x,\z
-                                                                                                                y = y,\z
-                                                                                                                persistence = 0.8,\z
-                                                                                                                seed0 = map_seed,\z
-                                                                                                                seed1 = 700000,\z
-                                                                                                                octaves = 3,\z
-                                                                                                                input_scale = 1/20 }\z
-                                                                                            * multioctave_noise{x = x,\z
-                                                                                                                y = y,\z
-                                                                                                                persistence = 0.8,\z
-                                                                                                                seed0 = map_seed,\z
-                                                                                                                seed1 = 200000,\z
-                                                                                                                octaves = 3,\z
-                                                                                                                input_scale = 1/6 * control:gleba_plants:frequency }))"
-data.raw["noise-expression"]["gleba_plants_noise_b"].expression = "eon_mask_gleba_territory(abs(multioctave_noise{x = x,\z
-                                                                                                                  y = y,\z
-                                                                                                                  persistence = 0.8,\z
-                                                                                                                  seed0 = map_seed,\z
-                                                                                                                  seed1 = 750000,\z
-                                                                                                                  octaves = 3,\z
-                                                                                                                  input_scale = 1/20 * control:gleba_plants:frequency }\z
-                                                                                              * multioctave_noise{x = x,\z
-                                                                                                                  y = y,\z
-                                                                                                                  persistence = 0.8,\z
-                                                                                                                  seed0 = map_seed,\z
-                                                                                                                  seed1 = 250000,\z
-                                                                                                                  octaves = 3,\z
-                                                                                                                  input_scale = 1/6 * control:gleba_plants:frequency }))"
+-- Mask gleba plants to gleba terrain (wrap the vanilla expressions by
+-- variable: diverts from vanilla automatically, no re-typed copy text).
+data.raw["noise-expression"]["gleba_plants_noise"].expression = "eon_mask_gleba_territory(" .. data.raw["noise-expression"]["gleba_plants_noise"].expression .. ")"
+data.raw["noise-expression"]["gleba_plants_noise_b"].expression = "eon_mask_gleba_territory(" .. data.raw["noise-expression"]["gleba_plants_noise_b"].expression .. ")"
 -- END: Update noise expressions
 
 -- New noise expressions and noise functions
-data.raw.tile["wetland-jellynut"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_spots_coastal * 5000 * (1 - gleba_biome_mask_red) * gleba_above_deep_water_mask)"
-data.raw.tile["wetland-yumako"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_spots_coastal * 5000 * (1 - gleba_biome_mask_green) * gleba_above_deep_water_mask)"
-data.raw.tile["natural-jellynut-soil"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_solid * 50000 - 40000 - gleba_biome_mask_red * 1000000)"
-data.raw.tile["natural-yumako-soil"].autoplace.probability_expression = "eon_mask_gleba_territory(gleba_fertile_solid * 50000 - 40000 - gleba_biome_mask_green * 1000000)"
+-- (The four fruit-tile probabilities are gleba-masked in the gleba section
+-- above via mask_gleba_territory, which references the eon_* snapshots — no
+-- re-typing of the vanilla text needed here or anywhere.)
 
 -- Frontier "starting area": mirror vanilla's guaranteed yumako/jellynut
 -- patches onto the land just below the transition (players arrive down the
@@ -1235,7 +1212,6 @@ data.raw["noise-expression"]["gleba_elevation"].local_expressions = nil
 -- Southern oceans come from vanilla basins only (see tile allow-list fix).
 -- An earlier workaround also keyed water to Nauvis elevation; that painted
 -- slime on dry highland near shores and is removed.
-data.raw["noise-expression"]["eon_wetland_blue_slime"].expression = "6 * gleba_select(gleba_elevation, gleba_deep_water_level, -4, 0.5, 0, 1) + 5 * gleba_rockpools_bluewater"
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["moisture"] = "eon_moisture_blended"
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["aux"] = "eon_aux_blended"
 data.raw.planet["nauvis"].map_gen_settings.property_expression_names["elevation"] = "eon_elevation_blended"
@@ -1715,13 +1691,14 @@ data:extend({
     expression = "if(eon_vulcanus_terrain, expression, -inf)"
   },
   {
-    -- Feather band around volcanoes (see terrain.mask_volcano_early), fading
-    -- with distance from the terrain edge (~0.46): full strength at the edge,
-    -- quarter strength at the band's outer reach.
+    -- Volcano natives blend off their own terrain edge (see
+    -- terrain.mask_volcano_early): the same eon_fade with the spot field
+    -- inverted — 0.46 - spots grows outward from the terrain edge (~0.46),
+    -- full inside, fading to a 0.25 floor at the outer reach (threshold).
     type = "noise-function",
     name = "eon_mask_volcano_early",
     parameters = {"expression", "threshold"},
-    expression = "if(eon_mountain_volcano_spots > threshold, expression * clamp((eon_mountain_volcano_spots - threshold) / (0.46 - threshold), 0.25, 1), -inf)"
+    expression = "eon_fade(expression, 0.46 - eon_mountain_volcano_spots, 0, 0.46 - threshold, 0.25)"
   },
   {
     -- Mask off close surroundings of vulcano
@@ -1729,6 +1706,45 @@ data:extend({
     name = "eon_mask_off_vulcano_coverage",
     parameters = {"expression"},
     expression = "if(eon_vulcano_coverage, -inf, expression)"
+  },
+  {
+    -- Generic boundary fade, the ONE fade primitive for every biome boundary
+    -- (see AGENTS.md "Boundary feathering rules"): `field` measures distance
+    -- INTO the neighbouring biome (0 = home side). Full strength while
+    -- field <= lo, linear fade to `floor` by field = hi, -inf past hi.
+    -- Home-side gates and hard exclusions are separate fades combined with
+    -- min(). No boost: the old x4 rim boost was a playtest patch that made
+    -- flora carpet volcano flanks and is gone.
+    type = "noise-function",
+    name = "eon_fade",
+    parameters = {"expression", "field", "lo", "hi", "floor"},
+    expression = "if(field > hi, -inf, if(field > lo, expression * clamp((hi - field) / (hi - lo), floor, 1), expression))"
+  },
+  {
+    -- Nauvis native that blends into its neighbours: ONE evaluation of the
+    -- vanilla pattern times the min of per-boundary fades. Plain ground: full
+    -- on nauvis, feathering out over the last ~1 transition (~5-10 tiles)
+    -- BEFORE the gleba line and zero south of it — grass tufts must never
+    -- sit on gleba tiles (reported repeatedly). Volcano: a short edge ring
+    -- (spots 0.46-0.52 = the terrain edge to the mid-flank) on the nauvis
+    -- side only (transition <= 0 — a volcano in gleba territory gets no
+    -- nauvis flora). Aquilo/ammonia: hard.
+    type = "noise-function",
+    name = "eon_mask_nauvis_territory_fade",
+    parameters = {"expression", "threshold"},
+    expression = "if(eon_gleba_transition > threshold, -inf, if(eon_aquilo_mask, -inf, if(eon_ammonia_mask, -inf, if(eon_vulcanus_terrain, -inf, expression * clamp(threshold - eon_gleba_transition, 0, 1)))))"
+  },
+  {
+    -- Gleba native that blends north instead of the hard mask_gleba_early
+    -- switch: full in gleba, fading across the first ~3 transition (≈10-30
+    -- tiles) north of the line, plus a short volcano edge ring on the gleba
+    -- side only (transition >= 0, spots 0.46-0.52). The old -40 threshold
+    -- was ~400 tiles of flora in nauvis — the units got confused with tiles.
+    -- Aquilo: hard.
+    type = "noise-function",
+    name = "eon_mask_gleba_territory_fade",
+    parameters = {"expression", "threshold"},
+    expression = "if(eon_gleba_transition < threshold, -inf, if(eon_aquilo_mask, -inf, if(eon_vulcanus_terrain, -inf, expression * clamp(eon_gleba_transition - threshold, 0, 1))))"
   },
   {
     -- Mask off all vulcanus terrain
@@ -1741,97 +1757,26 @@ data:extend({
 -- END: Update noise expressions
 
 --------------------------------------------------------------------------------
--- MARK: Nauvis decoratives feather into volcano rims
+-- MARK: Nauvis decoratives: hard masks, upstream-style
 --------------------------------------------------------------------------------
--- Inverse feather so volcano borders read as progression, not a wall: Nauvis
--- decoratives reach a short way INTO volcanoes (spots 0.46-0.65: the rim
--- between terrain edge and deep interior). Runs LAST because the Gleba
--- section legitimately overwrites some of these with transition flora; the
--- max() keeps whichever membership applies, so northern rims get Nauvis
--- types, southern rims get both, and deep interiors stay volcanic.
--- (This also restores northern grass tufts etc., which the overwrite had
--- accidentally confined to Gleba.)
-local eon_nauvis_rim_decoratives = {
-  { "cracked-mud-decal", "optimized-decorative", true },
-  { "dark-mud-decal", "optimized-decorative", true },
-  { "lichen-decal", "optimized-decorative", true },
-  { "light-mud-decal", "optimized-decorative", true },
-  { "small-rock", "optimized-decorative", true },
-  { "small-sand-rock", "optimized-decorative", true },
-  { "tiny-rock", "optimized-decorative", true },
+-- Nauvis natives are hard-masked to nauvis territory (the mask block in the
+-- Nauvis section above); only decoratives that explicitly blend into
+-- neighbour biomes use the _fade helper (currently the grass tufts). No
+-- volcano-rim allowance, no aquilo fringe: those were the source of every
+-- "nauvis flora around volcanoes / in gleba" leak and are gone (see
+-- AGENTS.md "Boundary feathering rules").
 
-  { "brown-asterisk", "optimized-decorative", false },
-  { "brown-asterisk-mini", "optimized-decorative", false },
-  { "brown-carpet-grass", "optimized-decorative", false },
-  { "brown-fluff", "optimized-decorative", false },
-  { "brown-fluff-dry", "optimized-decorative", false },
-  { "brown-hairy-grass", "optimized-decorative", false },
-  { "garballo", "optimized-decorative", false },
-  { "garballo-mini-dry", "optimized-decorative", false },
-  { "green-asterisk", "optimized-decorative", false },
-  { "green-asterisk-mini", "optimized-decorative", false },
-  { "green-bush-mini", "optimized-decorative", false },
-  { "green-carpet-grass", "optimized-decorative", false },
-  { "green-croton", "optimized-decorative", false },
-  { "green-desert-bush", "optimized-decorative", false },
-  { "green-hairy-grass", "optimized-decorative", false },
-  { "green-pita", "optimized-decorative", false },
-  { "green-pita-mini", "optimized-decorative", false },
-  { "green-small-grass", "optimized-decorative", false },
-  { "medium-rock", "optimized-decorative", true },
-  { "medium-sand-rock", "optimized-decorative", true },
-  { "red-asterisk", "optimized-decorative", false },
-  { "red-croton", "optimized-decorative", false },
-  { "red-desert-bush", "optimized-decorative", false },
-  { "red-desert-decal", "optimized-decorative", true },
-  { "red-pita", "optimized-decorative", false },
-  { "sand-decal", "optimized-decorative", true },
-  { "sand-dune-decal", "optimized-decorative", true },
-  { "white-desert-bush", "optimized-decorative", false },
-}
-
-for _, entry in pairs(eon_nauvis_rim_decoratives) do
-  local current = data.raw[entry[2]][entry[1]].autoplace.probability_expression
-  -- NOTE: the allowances use the raw snapshot, NOT the nauvis-masked one:
-  -- eon_mask_nauvis_territory already excludes all volcano terrain, which would
-  -- keep the rim shut. Only ammonia ocean stays excluded (grass tufts floating
-  -- on ammonia look wrong); vanilla patterns handle lakes themselves. The
-  -- aquilo fringe lets the same decoratives onto the icy shore fringe, so the
-  -- north reads as progression too. Both allowances are boosted: shared
-  -- patterns starve against their abundant elsewhere-selves (see rim notes).
-  local snap = data_util.generate_eon_name(entry[1])
-  -- The volcano rim applies to everything left in the list (rock entities
-  -- were removed: they stay strictly on Nauvis); the aquilo fringe only to
-  -- rock and ground-stain types. Flora carpeting snowfields reads wrong,
-  -- while rocks on snow read as erratics.
-  local fringe = entry[3] and ("4 * eon_mask_nauvis_aquilo_fringe(" .. snap .. ", 1)") or "-inf"
-  -- Band-gated with falloff: the allowance only lives on the outer rim
-  -- (spots 0.25-0.52) and fades deeper in, so Nauvis types fringe the edge
-  -- instead of carpeting Gleba/Aquilo or pushing into the interior. The
-  -- outer if() also cuts the deep interior entirely.
-  -- No aquilo guard on the rim: volcanoes outrank Aquilo, so northern rims
-  -- would otherwise go bald (aquilo blocks nauvis, volcano blocks aquilo).
-  -- Band widened slightly (0.2-0.55) after playtest showed bare rims.
-  -- off-aquilo: the rim band stays `decoratives fade onto the volcano`, but
-  -- only on the nauvis/gleba side; the aquilo flank stays volcanic (the aquilo
-  -- side is covered by the aquilo-deco rim allowance instead).
-  local rim_allow = "if(eon_mountain_volcano_spots > 0.2, eon_mask_off_aquilo_territory(4 * eon_mask_off_ammonia_ocean(" .. snap .. ") * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1)), -inf)"
-  data.raw[entry[2]][entry[1]].autoplace.probability_expression =
-      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), " .. rim_allow .. ", " .. fringe .. "))"
-end
-
--- Gleba transition flora shares the volcano rim (red-pita already rides the
--- Nauvis loop above, so only the Gleba-native leaders are added here). Same
--- band, same fade, implicit interior thinning like the trees.
+-- Gleba transition flora (leaders that blend north into the mixing band
+-- instead of popping in hard at -40): the gleba _fade helper gives them a
+-- smooth 0..-40 blend on plain ground and a short volcano edge ring on the
+-- gleba side only (transition >= 0). Overrides the hard mask_gleba_territory
+-- calls above.
 for _, name in pairs({
   "honeycomb-fungus", "honeycomb-fungus-1x1", "honeycomb-fungus-decayed",
   "yellow-lettuce-lichen-cups-1x1", "yellow-lettuce-lichen-cups-3x3",
   "yellow-lettuce-lichen-cups-6x6", "coral-water",
 }) do
-  local current = data.raw["optimized-decorative"][name].autoplace.probability_expression
-  local snap = data_util.generate_eon_name(name)
-  data.raw["optimized-decorative"][name].autoplace.probability_expression =
-      "if(eon_mountain_volcano_spots > 0.55, -inf, max((" .. current .. "), if(eon_mountain_volcano_spots > 0.2, eon_mask_off_aquilo_territory(4 * eon_mask_off_ammonia_ocean(" .. snap .. ") * clamp((0.55 - eon_mountain_volcano_spots) / 0.35, 0.25, 1)), -inf)))"
+  terrain.mask_gleba_territory_fade(name, "optimized-decorative", -1)
 end
 
 return terrain

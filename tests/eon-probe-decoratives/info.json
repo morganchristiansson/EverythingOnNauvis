@@ -1,0 +1,13 @@
+{
+    "name": "eon-probe-decoratives",
+    "version": "0.0.1",
+    "title": "EoN NAUVIUS decor leak prober (dev only)",
+    "description": "Counts where nauvis decoratives and trees render around deep-south volcanoes.",
+    "author": "morganc",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0.0",
+        "space-age >= 2.0.0",
+        "EverythingOnNauvis-morganc >= 0.1.0"
+    ]
+}

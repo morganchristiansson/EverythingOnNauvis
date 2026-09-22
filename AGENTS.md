@@ -36,6 +36,13 @@ Source of the "Everything on Nauvis (morganc fork)" mod. All terrain/map-gen log
 
 ## Map-gen probing headless (verified 2.0.77 on seed 12345, volcanism freq 600%)
 
+Decoratives: `surface.find_entities_filtered` does NOT return optimized-decoratives — use
+`surface.find_decoratives_filtered({area = …})` (result: `{position, decorative, amount}`, name
+via `dec.decorative.name`). `tests/probe_decoratives.py` + `tests/eon-probe-decoratives/` count
+what actually renders in six regions (nauvis plains, nauvis volcano, deep gleba, gleba volcano,
+aquilo north, the gleba line) and classify offenders by the transition under them (never by tile
+name — see tile-name trap above).
+
 Tooling (dev-only mods in `tests/`):
 - `tests/eon-verify-territory/` + `tests/verify_territory.py` — ground truth: writes per-chunk
   territory membership (`surface.get_territory_for_chunk`, LuaTerritory exists!), per-4px
@@ -150,6 +157,80 @@ Demolisher territory design (what the current code does, why):
   the `off_*` masks yield `-inf` inside their territory. It is the "nauvis only" mask — used to
   keep fish/dead trees out of non-Nauvis liquids (lava, ammonia ocean, Gleba wetlands), while
   leaving the inner probability expression (usually a literal, gets string-coerced) unchanged.
+- `eon_mask_gleba_territory(e)` / `eon_mask_off_gleba_territory(e)` gate on
+  `eon_gleba_mask` (= `eon_gleba_region(0)`). `eon_mask_nauvis_deep(e, t)` is the nauvis-side
+  version: `off_aquilo(off_vulcano(if(eon_gleba_region(t), -inf, e)))` — alive while the
+  transition stays below threshold `t`. Grass tiles, grass tufts and trees all use `t = 10`,
+  so they fade across the mixing band and die at the same line.
+
+### Decoratives: which biome owns what (truth source: `/factorio/data` prototypes)
+
+- **Nauvis natives**: `data/base/prototypes/decorative/decoratives.lua` (green-/brown-\* grass,
+  asterisks, fluffs, pitas, crotons, bushes, mud/sand/lichen/shroom decals, rocks, desert
+  bushes, garballo). Trees: `data/base/prototypes/entity/trees.lua`, driven by
+  `trees_forest_path_cutout_faded`.
+- **Gleba natives**: `data/space-age/prototypes/decorative/decoratives-gleba.lua` (lettuce
+  lichens, split-gills, veins, mycelium, corals, barnacles, nerve roots, white-carpet-grass,
+  black-sceptre, …). Trees: cuttlepop/slipstack/… + water-cane.
+- **Aquilo**: `decoratives-aquilo.lua` (icebergs, drifts, decals) · **Vulcanus**:
+  `decoratives-vulcanus.lua` (volcanic rocks, cracks, stains, pumice) · **Fulgora**:
+  `decoratives-fulgora.lua` (not on the merged map).
+- Rule of thumb: a decorative whose prototype lives in base is Nauvis-native; anything in
+  space-age belongs to its namesake biome. `map-generation/terrain.lua` then applies the
+  masks: Nauvis natives get `mask_nauvis_territory`/`mask_nauvis_deep` (+ the volcano-rim
+  feather loop), Gleba natives get `mask_gleba_territory`/`mask_gleba_early`, etc. Never
+  gleba-confine a Nauvis native (`mask_gleba_territory("green-*-grass", …)` was the bug that
+  carpeted all of Gleba with Nauvis grass).
+
+### Gotcha: gleba-region masks are volcano-excluded, territory masks can't gate volcano ground
+
+- `eon_gleba_region(t)` = `eon_mask_off_vulcano_terrain(if(transition > t, 1, 0))` — **on volcano
+  ground it returns -inf, not 0**, because volcano > gleba in the priority stack. So
+  `eon_mask_off_gleba_territory(e)` reads as "alive" on a deep-south volcano, and wrapping a
+  volcano-rim allowance in it does nothing where it matters.
+- To gate something *on volcano ground* by map side, compare the raw field instead:
+  `if(eon_gleba_transition > 0, -inf, …)` for the Nauvis side, `< -40` for the gleba side
+  (never the territory mask). The volcano-rim feather (`eon_feather_volcano_rim`) and the
+  `trees_forest_path_cutout_faded` rim branch both gate this way — a volcano deep in Gleba
+  territory gets no Nauvis decoratives/trees on its rim, and deep-nauvis volcanoes get no
+  Gleba transition flora on theirs.
+- `eon_aquilo_mask` is *not* volcano-excluded (pure elevation `eon_aquilo_land > -1`), so
+  `eon_mask_off_aquilo_territory` gates fine on volcano ground (used inside the rim feather).
+
+## Boundary feathering rules (the ONE method for every boundary)
+
+**The sign rule — the edge case behind every "decoratives covering everything" leak:**
+probability snapshots are SIGNED (negative = no spawn). `-inf` must REPLACE the probability via
+`if(mask, -inf, expression)` — it must NEVER be multiplied by the signed expression:
+`negative_snapshot × -inf = +inf = spawn at MAX density in the very region being excluded`.
+The hard masks (`mask_nauvis_territory` etc.) never leaked because they are `if()`-replacement;
+every "fade" iteration that multiplied leaked (both `min()` and product compositions of
+`expression * <fade-that-can-be--inf>`). Safe forms: `if()` branches; and multiplying a
+`-inf`-returning function by a non-negative constant (`4 * off_ammonia(snap)` is safe — on
+ammonia it is `-inf`, elsewhere the signed snapshot alone, no product of two). Unsafe:
+`signed_expr * <anything that can be -inf>`. The `_fade` functions are
+`if(eon_gleba_transition > t, -inf, ... if(mask, -inf, ... expression * clamp(..., 0, 1)))` —
+exclusions replace, only the 0..1 feather multiplies.
+
+**Tile-name trap:** gleba highland tiles reach ~700 tiles NORTH into nauvis (`mask_gleba_early
+(-70)` — the wide mixing band by design). A grass tuft on a `highland-dark-rock` tile in that
+band is NOT a leak (transition ≤ 0 there = functionally nauvis). Judge a position's biome by
+`eon_gleba_transition` / territory, never by the tile name — the probe classifies by transition
+for this reason.
+
+**The design (v7):** every decorative gets ONE helper call — hard mask (`mask_X_territory`) or
+`_fade`. `eon_mask_nauvis_territory_fade(e, t)` (grass, t = 0): full on nauvis, feathering out
+over the last ~1 transition (~10 tiles) before the gleba line, zero south of it, zero on
+volcano ground (volcanoes are harsh), zero on aquilo/ammonia. `eon_mask_gleba_territory_fade(e, t)`
+(transition flora leaders, t = -1): the mirror. No volcano rings, no boost, no floors — every
+attempt at those read as "covered" in live tests. `eon_fade(expression, field, lo, hi, floor)`
+is the generic primitive for the aquilo/volcano-native blends (`eon_mask_volcano_early`,
+`eon_mask_aquilo_*_early`) — full while field ≤ lo, linear fade to floor by field = hi, `-inf`
+past hi (the expression is passed INSIDE, so its `-inf` replaces — sign-safe).
+
+**Units gotcha:** `eon_gleba_transition` grows ~0.1-0.5 per tile, so a fade band of N transition
+units is roughly 10×N tiles. The old gleba-flora threshold `-40` was ~400 tiles of flora into
+nauvis. Short fades use single digits (1 = ~10 tiles).
 
 ## Bash tool hygiene
 

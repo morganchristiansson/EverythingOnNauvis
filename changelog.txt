@@ -21,6 +21,12 @@ Date: 2026-09-XX
     - Aquilo keeps only crude oil, lithium brine and fluorine vents: all other ores stay off aquilo land and ammonia ocean.
     - Tungsten is leaner (richness base halved-ish) with frequency-normalized distance gradients; flaming ashland trees stay deep inside volcanoes; lava fills big-volcano centers (vanilla upper bound).
   Bugfixes:
+    - Nauvis/Gleba decorative fades were leaking everywhere: the probability snapshots are
+      signed, so any fade that MULTIPLIED the expression by -inf turned negative snapshots
+      into +inf (spawn at max density in the very region being excluded). Every -inf
+      exclusion now REPLACES via if(); only 0..1 fades multiply. Grass tufts stay on nauvis
+      (feathered ~10 tiles before the gleba line, zero on volcano ground, zero on aquilo);
+      gleba transition flora mirror that; all other decoratives hard-masked upstream-style.
     - Demolisher territory is bound to the volcano CORE (folds + lava rings, outer
       folds-flat skirt excluded): the mask is the same signals that place the core tiles,
       built on the 16px-shifted spot field so the engine's top-left-corner chunk sampling

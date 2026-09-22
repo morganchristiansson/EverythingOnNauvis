@@ -126,6 +126,7 @@ data.raw["noise-expression"]["demolisher_variation_expression"].expression = "if
 
 data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["gleba_enemy_base"] = {}
 
--- Normal spawning
-data.raw["noise-expression"]["gleba_spawner"].expression = "eon_mask_gleba_territory(max(0.01 * gleba_starting_enemies, max(min(0.02, enemy_autoplace_base(0, 8)), min(0.001, gleba_fertile_spots_coastal * 5000 - gleba_biome_mask_green * 25000)) * (distance > 500 * gleba_starting_area_multiplier)) * gleba_above_deep_water_mask)"
-data.raw["noise-expression"]["gleba_spawner_small"].expression = "eon_mask_gleba_territory(max(0.02 * gleba_starting_enemies, 0.02 * gleba_starting_enemies_safe, min(0.02, enemy_autoplace_base(0, 8)), min(0.001, gleba_fertile_spots_coastal * 5000 - gleba_biome_mask_green * 25000)) * gleba_above_deep_water_mask)"
+-- Normal spawning (wrap the vanilla spawner expressions by variable: mask
+-- only, no re-typed copy text).
+data.raw["noise-expression"]["gleba_spawner"].expression = "eon_mask_gleba_territory(" .. data.raw["noise-expression"]["gleba_spawner"].expression .. ")"
+data.raw["noise-expression"]["gleba_spawner_small"].expression = "eon_mask_gleba_territory(" .. data.raw["noise-expression"]["gleba_spawner_small"].expression .. ")"
