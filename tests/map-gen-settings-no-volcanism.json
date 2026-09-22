@@ -1,0 +1,6 @@
+{
+    "_comment": "Probe-only: crush volcano frequency so EoN south renders pure gleba for vanilla comparisons (real games keep volcanism; this is only for measuring map-gen fidelity).",
+    "autoplace_controls": {
+        "vulcanus_volcanism": {"frequency": 0.05, "size": 1}
+    }
+}

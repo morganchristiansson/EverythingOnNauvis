@@ -149,6 +149,19 @@ Demolisher territory design (what the current code does, why):
 
 ## Map-gen / territory masks
 
+- Cliffs: one cliff ladder per surface (`cliff_settings` on the planet: interval 40 /
+  first band 10 / richness 1.0 engine defaults for nauvis; vanilla gleba is interval 60 /
+  40 / 0.8). The merged map keeps the nauvis ladder but emulates gleba's contour
+  PLACEMENT through `eon_cliff_elevation`: the south arm feeds `(2*gleba_elevation-50)/3`,
+  mapping every 40-unit ladder step onto a 60-unit gleba step anchored at 40+60k. Before
+  that, EoN south had 2.9x vanilla's cliff count with cliffs in wetland/lowland ground;
+  after, ~1.2x (residual = richness 1.0 vs 0.8 + volcano terrace rings). Segment density
+  per contour can't be split per-region; only placement can, via the property. Baseline
+  probe: `tests/probe_baseline.py` + `tests/eon-probe-baseline/` (EON=1 scans the merged
+  map; GLEBA=1 loads `tests/eon-probe-glebanauvis/`, which copies vanilla gleba's
+  map_gen_settings onto nauvis so the same surface generates vanilla gleba — that works;
+  `game.create_surface(name, settings)` does NOT honor map_gen_settings tables and makes
+  junk terrain with random-other-planet tiles).
 - Fish: vanilla prototype `fish.autoplace.probability_expression = 0.01` (a literal number) and
   fish only materialize on liquid tiles; per-planet enablement is
   `planet.map_gen_settings.autoplace_settings.entity.settings["fish"] = {}`.
@@ -181,6 +194,21 @@ Demolisher territory design (what the current code does, why):
   feather loop), Gleba natives get `mask_gleba_territory`/`mask_gleba_early`, etc. Never
   gleba-confine a Nauvis native (`mask_gleba_territory("green-*-grass", …)` was the bug that
   carpeted all of Gleba with Nauvis grass).
+- **Exception — shared prototypes**: vanilla Gleba itself rebinds ~15 base prototypes to
+  gleba-specific expressions via its planet `property_expression_names`
+  (`decorative:<name>:probability` → `gleba_<name>_probability`) and grows them as its own
+  desert-province flora: desert bushes (red/white), pitas (red/green/green-mini), green
+  croton, green-bush-mini, the five mud/lichen/shroom decals, and green-carpet/hairy grass.
+  EoN restores those via `terrain.mask_gleba_shared(name, type, "gleba_…_probability")` —
+  the nauvis-side mask is applied first, then the whole thing becomes
+  `if(eon_gleba_mask, <vanilla gleba formula>, <nauvis expr>)`. The gleba formulas read
+  `gleba_aux`/`gleba_moisture`/`gleba_elevation`, which the mod has re-pointed to the
+  blended fields, so deep south evaluates byte-identical to vanilla. Consequences:
+  green-carpet/hairy grass are NOT leaks in gleba anymore (vanilla grows them) — the decor
+  e2e probe only asserts the nauvis-only tufts (green-small/brown-carpet/hairy) stay out.
+  Vanilla gleba also registers the red/purple/cream `*-nerve-roots-veins-*` decoratives;
+  the original mod referenced non-existent unprefixed names and they silently never placed —
+  they are (re)registered and masked like the other gleba natives.
 
 ### Gotcha: gleba-region masks are volcano-excluded, territory masks can't gate volcano ground
 

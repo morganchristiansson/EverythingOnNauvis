@@ -1,0 +1,13 @@
+{
+    "name": "eon-probe-fruit",
+    "version": "0.0.1",
+    "title": "EoN fruit frontier prober (dev only)",
+    "description": "Counts fruit soils and trees in the gleba frontier region.",
+    "author": "morganc",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0.0",
+        "space-age >= 2.0.0",
+        "EverythingOnNauvis-morganc >= 0.1.0"
+    ]
+}

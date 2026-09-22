@@ -28,8 +28,14 @@ PROBE_NAME = "eon-probe-decoratives"
 SEED = "12345"
 SETTINGS = os.path.join(MOD_DIR, "tests", "map-gen-settings-high-volcanism.json")
 
+# Green carpet/hairy grass are shared prototypes that vanilla GLEBA also
+# grows (its planet property_expression_names rebind them to gleba_*_grass_
+# probability); the mod restores that in gleba territory, so they are NOT
+# leaks south. The others are nauvis-only: vanilla has zero of them in gleba.
 GRASS = ["green-hairy-grass", "green-carpet-grass", "green-small-grass",
          "brown-carpet-grass", "brown-hairy-grass"]
+NAUVIS_ONLY_GRASS = ["green-small-grass", "brown-carpet-grass", "brown-hairy-grass"]
+GLEBA_NATIVE_GRASS = ["green-hairy-grass", "green-carpet-grass"]
 GLEBA_FLORA = ["honeycomb-fungus", "honeycomb-fungus-1x1", "honeycomb-fungus-decayed",
                "coral-water", "yellow-lettuce-lichen-cups-1x1", "white-carpet-grass", "mycelium"]
 
@@ -111,7 +117,7 @@ def main():
     # are tens of thousands and blow this threshold by 100x.
     deep_grass = data.get("deep_gleba_deep_grass_on_gleba_tiles", 0)
     if deep_grass > 1000:
-        failures.append(f"grass on gleba-named tiles in deep gleba strip: {deep_grass} (must be ~0)")
+        failures.append(f"nauvis-only grass on gleba-named tiles in deep gleba strip: {deep_grass} (must be ~0)")
 
     # 3. Home biome must keep its flora (fades must not over-kill).
     nauvis_grass = data.get("nauvis_plains_grass_any", 0)

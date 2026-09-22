@@ -7,6 +7,20 @@ local terrain = {}
 
 log("[EoN-morganc] build marker: fades-v7-signsafe")
 
+-- Base-prototype decoratives that vanilla Gleba ALSO grows, via its planet
+-- property_expression_names rebinding these shared prototypes to
+-- gleba_*_probability expressions. On the merged map those bindings don't
+-- exist, so south of the line we evaluate the vanilla gleba formula directly
+-- (gleba_aux/moisture/selection expressions already resolve to the blended
+-- fields, so this is byte-identical to vanilla gleba); the nauvis-side
+-- expression stays untouched. Volcano ground can never be reached: eon_gleba_mask
+-- is off-volcano; where it is false the nauvis expression handles the rest.
+function terrain.mask_gleba_shared(decorative, decorative_type, gleba_probability)
+  local current = data.raw[decorative_type][decorative].autoplace.probability_expression
+  data.raw[decorative_type][decorative].autoplace.probability_expression =
+      "if(eon_gleba_mask, " .. gleba_probability .. ", " .. current .. ")"
+end
+
 function terrain.mask_nauvis_territory(decorative, decorative_type)
   data.raw[decorative_type][decorative].autoplace.probability_expression = "eon_mask_nauvis_territory(" .. data_util.generate_eon_name(decorative) .. ")"
 end
@@ -160,11 +174,19 @@ data.raw["noise-expression"]["tree_dead_grey_trunk"].expression = "eon_mask_nauv
 data.raw["fish"]["fish"].autoplace.probability_expression = "eon_mask_nauvis_territory(" .. data.raw["fish"]["fish"].autoplace.probability_expression .. ")"
 
 -- Remove nauvis decoratives from eon_vulcano_coverage
+-- (The mud/lichen/shroom decals are base prototypes that vanilla Gleba also
+-- grows via its property_expression_names; mask_gleba_shared restores that in
+-- gleba territory AFTER the nauvis-side mask, so north behaviour is unchanged.)
 terrain.mask_nauvis_territory("cracked-mud-decal", "optimized-decorative")
+terrain.mask_gleba_shared("cracked-mud-decal", "optimized-decorative", "gleba_cracked_mud_probability")
 terrain.mask_nauvis_territory("dark-mud-decal", "optimized-decorative")
+terrain.mask_gleba_shared("dark-mud-decal", "optimized-decorative", "gleba_dark_mud_probability")
 terrain.mask_nauvis_territory("lichen-decal", "optimized-decorative")
+terrain.mask_gleba_shared("lichen-decal", "optimized-decorative", "gleba_orange_lichen_probability")
 terrain.mask_nauvis_territory("shroom-decal", "optimized-decorative")
+terrain.mask_gleba_shared("shroom-decal", "optimized-decorative", "gleba_carpet_shroom_probability")
 terrain.mask_nauvis_territory("light-mud-decal", "optimized-decorative")
+terrain.mask_gleba_shared("light-mud-decal", "optimized-decorative", "gleba_light_mud_probability")
 terrain.mask_nauvis_territory("small-rock", "optimized-decorative")
 terrain.mask_nauvis_territory("small-sand-rock", "optimized-decorative")
 terrain.mask_nauvis_territory("tiny-rock", "optimized-decorative")
@@ -183,15 +205,24 @@ terrain.mask_nauvis_territory("garballo-mini-dry", "optimized-decorative")
 terrain.mask_nauvis_territory("green-asterisk", "optimized-decorative")
 terrain.mask_nauvis_territory("green-asterisk-mini", "optimized-decorative")
 terrain.mask_nauvis_territory("green-bush-mini", "optimized-decorative")
--- Grass tufts feather across the mixing band like the grass tiles they sit
--- on (same +10 threshold): full strength on Nauvis, fading into the Gleba
--- transition — not hard-cut at the line, never carpeting deep Gleba.
+terrain.mask_gleba_shared("green-bush-mini", "optimized-decorative", "gleba_green_bush_probability")
+-- Grass tufts feather across the mixing band like the grass tiles they sit on
+-- (same +10 threshold): full strength on Nauvis, fading into the Gleba
+-- transition. Vanilla gleba ALSO grows carpet/hairy grass (its planet
+-- property_expression_names rebind these to gleba_green_*_grass_probability),
+-- so south of the line they use the vanilla gleba formula instead of dying at
+-- the border; the fade stays for the nauvis side.
 terrain.mask_nauvis_territory_fade("green-carpet-grass", "optimized-decorative", 0)
+terrain.mask_gleba_shared("green-carpet-grass", "optimized-decorative", "gleba_green_carpet_grass_probability")
 terrain.mask_nauvis_territory("green-croton", "optimized-decorative")
+terrain.mask_gleba_shared("green-croton", "optimized-decorative", "gleba_green_cronton_probability")
 terrain.mask_nauvis_territory("green-desert-bush", "optimized-decorative")
 terrain.mask_nauvis_territory_fade("green-hairy-grass", "optimized-decorative", 0)
+terrain.mask_gleba_shared("green-hairy-grass", "optimized-decorative", "gleba_green_hairy_grass_probability")
 terrain.mask_nauvis_territory("green-pita", "optimized-decorative")
+terrain.mask_gleba_shared("green-pita", "optimized-decorative", "gleba_green_pita_probability")
 terrain.mask_nauvis_territory("green-pita-mini", "optimized-decorative")
+terrain.mask_gleba_shared("green-pita-mini", "optimized-decorative", "gleba_green_pita_mini_probability")
 terrain.mask_nauvis_territory("green-small-grass", "optimized-decorative")
 terrain.mask_nauvis_territory("huge-rock", "simple-entity")
 terrain.mask_nauvis_territory("medium-rock", "optimized-decorative")
@@ -199,11 +230,14 @@ terrain.mask_nauvis_territory("medium-sand-rock", "optimized-decorative")
 terrain.mask_nauvis_territory("red-asterisk", "optimized-decorative")
 terrain.mask_nauvis_territory("red-croton", "optimized-decorative")
 terrain.mask_nauvis_territory("red-desert-bush", "optimized-decorative")
+terrain.mask_gleba_shared("red-desert-bush", "optimized-decorative", "gleba_red_desert_bush_probability")
 terrain.mask_nauvis_territory("red-desert-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("red-pita", "optimized-decorative")
+terrain.mask_gleba_shared("red-pita", "optimized-decorative", "gleba_red_pita_probability")
 terrain.mask_nauvis_territory("sand-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("sand-dune-decal", "optimized-decorative")
 terrain.mask_nauvis_territory("white-desert-bush", "optimized-decorative")
+terrain.mask_gleba_shared("white-desert-bush", "optimized-decorative", "gleba_white_desert_bush_probability")
 
 -- Remove nauvis tiles across the mixing band: dry sand dies first (north),
 -- dirt in the middle; grass ends with the rest at the water line — no deep
@@ -696,8 +730,12 @@ data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.setting
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["coral-stunted-grey"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["nerve-roots-dense"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["nerve-roots-sparse"] = {}
--- data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["nerve-roots-veins-dense"] = {}
--- data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["nerve-roots-veins-sparse"] = {}
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["red-nerve-roots-veins-dense"] = {}
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["red-nerve-roots-veins-sparse"] = {}
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["purple-nerve-roots-veins-dense"] = {}
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["purple-nerve-roots-veins-sparse"] = {}
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["cream-nerve-roots-veins-dense"] = {}
+data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["cream-nerve-roots-veins-sparse"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["yellow-coral"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["solo-barnacle"] = {}
 data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.decorative.settings["curly-roots-orange"] = {}
@@ -832,8 +870,12 @@ terrain.mask_gleba_territory("coral-stunted", "optimized-decorative")
 terrain.mask_gleba_territory("coral-stunted-grey", "optimized-decorative")
 terrain.mask_gleba_territory("nerve-roots-dense", "optimized-decorative")
 terrain.mask_gleba_territory("nerve-roots-sparse", "optimized-decorative")
--- terrain.mask_gleba_territory("nerve-roots-veins-dense", "optimized-decorative")
--- terrain.mask_gleba_territory("nerve-roots-veins-sparse", "optimized-decorative")
+terrain.mask_gleba_territory("red-nerve-roots-veins-dense", "optimized-decorative")
+terrain.mask_gleba_territory("red-nerve-roots-veins-sparse", "optimized-decorative")
+terrain.mask_gleba_territory("purple-nerve-roots-veins-dense", "optimized-decorative")
+terrain.mask_gleba_territory("purple-nerve-roots-veins-sparse", "optimized-decorative")
+terrain.mask_gleba_territory("cream-nerve-roots-veins-dense", "optimized-decorative")
+terrain.mask_gleba_territory("cream-nerve-roots-veins-sparse", "optimized-decorative")
 terrain.mask_gleba_territory("yellow-coral", "optimized-decorative")
 terrain.mask_gleba_territory("solo-barnacle", "optimized-decorative")
 terrain.mask_gleba_territory("curly-roots-orange", "optimized-decorative")
@@ -927,62 +969,79 @@ data.raw["noise-expression"]["gleba_plants_noise_b"].expression = "eon_mask_gleb
 -- above via mask_gleba_territory, which references the eon_* snapshots — no
 -- re-typing of the vanilla text needed here or anywhere.)
 
--- Frontier "starting area": mirror vanilla's guaranteed yumako/jellynut
--- patches onto the land just below the transition (players arrive down the
--- x = 0 axis). Angles are degrees, 180 = south. Everything downstream
--- (wetlands, soils, even pentapod nesting via fertile spots) then behaves
--- exactly like vanilla's spawn: engineered pair up front, raw vanilla
--- provinces everywhere else, deep south regular Gleba, untouched.
+-- Translated Gleba starting area: vanilla's guaranteed yumako/jellynut patch
+-- PAIR, moved to the land just below the transition (players arrive down the
+-- x = 0 axis). Same expression shape as vanilla's gleba_starting_fertile
+-- (starting_spot_at_angle with the vanilla radius/wobble formula, angle
+-- constants 180 +/- spread * gleba_starting_direction instead of
+-- gleba_starting_angle's seed rotation, which would point back at the Nauvis
+-- origin). The pair is flipped by gleba_starting_direction like vanilla; the
+-- starting_aux gradient below uses the same direction so yumako always lands
+-- on the low-aux side. Everything downstream (wetlands, soils, even pentapod
+-- nesting via fertile spots) is pure vanilla.
 data:extend({
   {
     type = "noise-expression",
-    name = "eon_yumako_frontier",
-    expression = "starting_spot_at_angle{angle = 180 + 12 * gleba_starting_direction,\z
-                                             distance = eon_gleba_south_offset + 1100,\z
-                                             radius = 30,\z
+    name = "eon_gleba_fertile_yumako",
+    expression = "starting_spot_at_angle{angle = 180 + 8 * gleba_starting_direction,\z
+                                             distance = eon_gleba_start_y,\z
+                                             radius = 40 * gleba_starting_area_multiplier,\z
                                              x_distortion = gleba_wobble_x * 15,\z
-                                             y_distortion = gleba_wobble_y * 15}"
+                                             y_distortion = gleba_wobble_x * 15}"
   },
   {
     type = "noise-expression",
-    name = "eon_jellynut_frontier",
-    expression = "starting_spot_at_angle{angle = 180 - 12 * gleba_starting_direction,\z
-                                             distance = eon_gleba_south_offset + 1100,\z
-                                             radius = 30,\z
+    name = "eon_gleba_fertile_jellynut",
+    expression = "starting_spot_at_angle{angle = 180 - 8 * gleba_starting_direction,\z
+                                             distance = eon_gleba_start_y,\z
+                                             radius = 40 * gleba_starting_area_multiplier,\z
                                              x_distortion = gleba_wobble_x * 15,\z
-                                             y_distortion = gleba_wobble_y * 15}"
+                                             y_distortion = gleba_wobble_x * 15}"
   },
 })
-data.raw["noise-expression"]["gleba_starting_fertile"].expression = "max(eon_yumako_frontier, eon_jellynut_frontier) * gleba_above_deep_water_mask"
+data.raw["noise-expression"]["gleba_starting_fertile"].expression = "max(eon_gleba_fertile_yumako, eon_gleba_fertile_jellynut) * gleba_above_deep_water_mask"
 
--- Frontier lowland bowls: vanilla sinks engineered lowland terrain under its
--- starting patches; vanilla's own lowland blend only reaches near origin, so
--- these twin bowls (same sites as the fertile patches, vanilla lowland radii)
--- sink the terrain in OUR elevation blend instead. Fruit sits in wet
--- clearings, never forced uphill; outside the bowls the elevation penalties
--- apply again, which keeps sprawl contained.
+-- Translated lowland bowls: vanilla sinks engineered lowland terrain under its
+-- starting patches via gleba_starting_lowlands, but that blend only reaches
+-- near origin (its weight in gleba_elevation_common falls to zero ~600 tiles
+-- out), so the same two vanilla-lowland spots (vanilla radii 140/100 *
+-- gleba_starting_area_multiplier) sink the terrain in OUR elevation blend
+-- instead. Fruit sits in wet clearings, never forced uphill; outside the
+-- bowls the elevation penalties apply again, which keeps sprawl contained.
 data:extend({
   {
     type = "noise-expression",
-    name = "eon_yumako_bowl",
-    expression = "starting_spot_at_angle{angle = 180 + 12 * gleba_starting_direction,\z
-                                             distance = eon_gleba_south_offset + 1100,\z
-                                             radius = 98,\z
+    name = "eon_gleba_lowland_yumako",
+    expression = "starting_spot_at_angle{angle = 180 + 8 * gleba_starting_direction,\z
+                                             distance = eon_gleba_start_y,\z
+                                             radius = 140 * gleba_starting_area_multiplier,\z
                                              x_distortion = gleba_wobble_x * 15,\z
-                                             y_distortion = gleba_wobble_y * 15}"
+                                             y_distortion = gleba_wobble_x * 15}"
   },
   {
     type = "noise-expression",
-    name = "eon_jellynut_bowl",
-    expression = "starting_spot_at_angle{angle = 180 - 12 * gleba_starting_direction,\z
-                                             distance = eon_gleba_south_offset + 1100,\z
-                                             radius = 70,\z
+    name = "eon_gleba_lowland_jellynut",
+    expression = "starting_spot_at_angle{angle = 180 - 8 * gleba_starting_direction,\z
+                                             distance = eon_gleba_start_y,\z
+                                             radius = 100 * gleba_starting_area_multiplier,\z
                                              x_distortion = gleba_wobble_x * 15,\z
-                                             y_distortion = gleba_wobble_y * 15}"
+                                             y_distortion = gleba_wobble_x * 15}"
   },
 })
 -- (gleba_starting_lowlands itself stays vanilla: its blend weight is zero
 -- out here, the bowls above do the shaping instead).
+
+-- Anchor shared by the fertile patches, the lowland bowls and the starting_aux
+-- gradient below: a point just south of where Gleba terrain starts.
+-- eon_gleba_start_y keeps the whole patch south of the wobbly tile line
+-- (transition >= +20 at this margin) while being as close to it as possible.
+data:extend({
+  {
+    type = "noise-expression",
+    name = "eon_gleba_start_y",
+    expression = "eon_gleba_south_offset + 340"
+  },
+})
 
 -- Correlate Gleba fields with Nauvis fields by shared meaning (see blend below).
 -- `elevation` on Nauvis is NOT `gleba_elevation`: the property resolves per
@@ -1055,8 +1114,10 @@ data:extend({
     }
   },
   {
-    -- Blend driver. Same curves as the line with the same uncapped ramp, so it
-    -- saturates to 1: deep-south fields stay pure vanilla Gleba.
+    -- Uncapped transition value, kept as the WATER line only: southern lakes
+    -- (eon_gleba_region_deep, threshold -10) must stay gleba water to the
+    -- south with no nauvis pockets, so this stays uncapped and wobble-follows
+    -- the line. The field blend above uses a clean y-ramp instead.
     type = "noise-expression",
     name = "eon_gleba_blend_input",
     expression = "gleba_shape + south_uncapped",
@@ -1067,42 +1128,40 @@ data:extend({
     }
   },
   {
-    -- 0 north of the line, 1 deep south. Both tile systems read blended
-    -- fields through this, so vanilla's own soft selects draw the boundary.
+    -- THE one transition field: a clean few-hundred-tile weighted average,
+    -- NOT the territory line's wobble curves. The line may wander (it follows
+    -- real terrain for character), but the field blend must saturate reliably:
+    -- a wobble-laden input still read 5-25% nauvis at y 1800-1900 when the
+    -- wobbles dipped, and because nauvis aux sits high that partial blend
+    -- shifted the whole aux distribution up - corals/lichen boomed, low/mid-
+    -- aux provinces (green pita/croton/grass) died. Every blended property
+    -- (moisture, aux, elevation, cliffiness) uses this so they switch over
+    -- together: 0 north of eon_gleba_south_offset - 100, 1 by +400 south.
     type = "noise-expression",
     name = "eon_gleba_blend",
     expression = "t * t * (3 - 2 * t)",
     local_expressions = {
-      t = "clamp(eon_gleba_blend_input / 120, 0, 1)"
+      t = "clamp((y - (eon_gleba_south_offset - 100)) / 500, 0, 1)"
     }
   },
   {
-    -- Fast moisture twin for shoreline signals only: vanilla's water-plant
-    -- ramp is steep because moisture tracks elevation steeply at shores; our
-    -- slow morph flattened it into a plateau and grew dense bands instead of
-    -- fringes. Same formula, sharper field. Plain moisture keeps the slow
-    -- morph for the wide mixing.
+    -- Shoreline twin is a different field, not another blend width: the
+    -- water-plant ramp steepens because moisture tracks elevation steeply at
+    -- shores; the morph flattened it into a plateau of dense fringes. Sharper
+    -- field, same formula.
     type = "noise-expression",
     name = "eon_moisture_fast",
-    expression = "lerp(moisture_nauvis, eon_gleba_moisture_vanilla, eon_gleba_blend_fast)"
-  },
-  {
-    -- Fast twin for elevation: water/shore/highland bands need crisp
-    -- elevation (pit-rock lives above 20, wetlands below ~10 — a slow morph
-    -- parks both in the middle and they end up side by side, which vanilla
-    -- never does).
-    type = "noise-expression",
-    name = "eon_gleba_blend_fast",
-    expression = "t * t * (3 - 2 * t)",
-    local_expressions = {
-      t = "clamp(eon_gleba_blend_input / 30, 0, 1)"
-    }
+    expression = "lerp(moisture_nauvis, eon_gleba_moisture_vanilla, eon_gleba_blend)"
   },
   eon_copy_vanilla_field("gleba_moisture", "eon_gleba_moisture_vanilla"),
   eon_copy_vanilla_field("gleba_aux", "eon_gleba_aux_vanilla"),
   eon_copy_vanilla_field("gleba_elevation", "eon_gleba_elevation_vanilla"),
   {
-    -- Same 0..1 meaning both sides: wet north stays wet south.
+    -- Moisture switches fully within the transition band (one eon_gleba_blend
+    -- for every property). A wide variant staying tens of % nauvis at y 1800-
+    -- 2200 measurably shifted the vanilla gleba DECOR provinces (pita/croton/
+    -- bush have moisture-selective gleba_select bands; desert bushes' wide
+    -- band hid it) while the tile mix moved nothing.
     type = "noise-expression",
     name = "eon_moisture_blended",
     expression = "lerp(moisture_nauvis, eon_gleba_moisture_vanilla, eon_gleba_blend)"
@@ -1110,31 +1169,57 @@ data:extend({
   {
     type = "noise-expression",
     name = "eon_aux_blended",
-    expression = "lerp(lerp(base_blend_fast, 0.35, yumako_halo), 0.65, jelly_halo)",
+    -- Vanilla's own aux gardening, translated: near a gleba spawn, gleba_aux
+    -- lerps a starting_aux (=-rotated_y/200/mult, +-2) into the RAW +-3 aux
+    -- pattern first and scales the result afterwards. Our blend works on the
+    -- 0..1 property scale (aux_nauvis north, vanilla gleba aux south), so the
+    -- gradient must be expressed on that scale too: 0.5 + 0.5 * starting_aux
+    -- is vanilla's own shape mapped to the 0..1 range. Do NOT wrap the lerp
+    -- itself in 0.5+0.5 again - that double-scales the input and shifts the
+    -- whole deep-south aux distribution up (measured: corals/lichen boomed,
+    -- low/mid aux provinces like pita/croton/grass died out completely).
+    -- The gradient is flipped with gleba_starting_direction so the yumako
+    -- patch always lands on the low-aux side and jellynut on the high one;
+    -- gleba_biome_mask_green/red stay vanilla and do the rest.
+    expression = "clamp(lerp(base_blend, aux_target, starting_radius), 0, 1)",
     local_expressions =
     {
-      base_blend_fast = "lerp(aux_nauvis, eon_gleba_aux_vanilla, eon_gleba_blend_fast)",
-      -- Engineered aux near the frontier patches (vanilla does the same with
-      -- starting_aux near spawn): guarantees the west patch grows yumako /
-      -- copper and the east patch jellynut / iron instead of gambling on the
-      -- province lottery. Stromatolites and decor follow automatically.
-      yumako_halo = "clamp(eon_yumako_frontier * 1.1, 0, 1)",
-      jelly_halo = "clamp(eon_jellynut_frontier * 1.1, 0, 1)"
+      base_blend = "lerp(aux_nauvis, eon_gleba_aux_vanilla, eon_gleba_blend)",
+      -- Vanilla starting_aux (=-rotated_y/200/mult, clamp -2..2), axis swapped
+      -- to the lateral x so the split runs east-west across the two patches.
+      -- Steeper than vanilla's /200 because our radial reach is shorter: the
+      -- patch (radius ~28 at x=+/-186) must sit firmly on the hard 0/1 target
+      -- else its far edge blends back above 0.375 aux and loses its soil
+      -- (measured: yumako patch soil collapsed to a few tiles).
+      starting_aux = "clamp(gleba_starting_direction * x / (110 * gleba_starting_area_multiplier), -2, 2)",
+      -- Vanilla's own 0.5 + 0.5 * starting_aux shape, on the 0..1 aux scale.
+      aux_target = "clamp(0.5 + 0.5 * starting_aux, 0, 1)",
+      -- Anisotropic gate covering only the start patches (the pair sits at
+      -- +-186 x around y 1340 +-45 with wobble; the fertile radius is ~28 and
+      -- the lowland bowls ~+/-100): full weight across the patch boxes, zero
+      -- by |x| = 330 / |y - 1340| = 110 (y ~1450), so the deep south past the
+      -- start is pure vanilla aux. A radial mask had to span the +-214
+      -- lateral reach and so reached y ~1660, tilting the aux-selected
+      -- decoration provinces in a belt just south of the start (solo-barnacle
+      -- / green-cup / wispy-lichen measured 3-4x vanilla there). Full weight
+      -- at the patches is what keeps the low-aux (yumako) side under the
+      -- 0.375 green-mask line even where the vanilla aux province clamps to 1
+      -- (aux = target = 0 exactly); a partial weight blended the patch's far
+      -- side back above 0.375 and silently lost the whole yumako patch soil.
+      starting_radius = "clamp(min(330 - abs(x), 110 - abs(y - eon_gleba_start_y)) / 115, 0, 1)",
     }
   },
   {
-    -- One elevation morph for both readers: north is Nauvis ground (lakes and
-    -- all), deep south is vanilla Gleba. Mid-band is the average, so a lake on
-    -- either side stays a lake through the band instead of hitting a wall.
-    -- Frontier bowls sink engineered lowland under the fruit patches (mirror
-    -- of vanilla starting_lowlands, which only blends near origin and can't
-    -- reach the frontier): fruit sits in wet clearings, never forced uphill.
+    -- Translated lowland bowls sink engineered lowland under the fruit
+    -- patches (mirror of vanilla gleba_starting_lowlands, which only blends
+    -- near origin and can't reach the translated start): fruit sits in wet
+    -- clearings, never forced uphill.
     type = "noise-expression",
     name = "eon_elevation_blended",
-    expression = "lerp(lerp(elevation_nauvis, eon_gleba_elevation_vanilla, eon_gleba_blend_fast), 5, bowl_mask)",
+    expression = "lerp(lerp(elevation_nauvis, eon_gleba_elevation_vanilla, eon_gleba_blend), 5, bowl_mask)",
     local_expressions =
     {
-      bowl_mask = "clamp(max(eon_yumako_bowl, eon_jellynut_bowl), 0, 1)"
+      bowl_mask = "clamp(max(eon_gleba_lowland_yumako, eon_gleba_lowland_jellynut), 0, 1)"
     }
   },
   {
@@ -1662,15 +1747,26 @@ data:extend({
   {
     -- Cliff elevation follows the same blend as the tiles: Nauvis contours
     -- north, Gleba elevation contours deep south (vanilla Gleba uses the
-    -- elevation property directly). Volcano spikes still ring volcanoes. Compensate
-    -- for non-default cliff_elevation_0 so the contour grid keeps the same offsets.
+    -- elevation property directly). Volcano spikes still ring volcanoes.
+    --
+    -- The south arm RESCALES the elevation to Gleba's cliff ladder: the merged
+    -- surface must use the nauvis cliff_settings (interval 40, first band ~10,
+    -- richness 1.0 - one ladder per surface), while vanilla gleba uses
+    -- interval 60 / first band 40. Scaling the fed elevation by 2/3 and
+    -- anchoring at -50/3 maps every 40-unit nauvis step onto a 60-unit gleba
+    -- step starting at the same places gleba's did (40 + 60k -> contour value
+    -- 10 + 40k), so contour PLACEMENT matches vanilla: no cliffs in wetland /
+    -- lowland ground below ~elev 40 and the same spacing on dry land. Segment
+    -- density stays ~25% higher (richness 1.0 vs 0.8) - acceptable, and the
+    -- probe shows the count drops from 2.9x vanilla to ~1.2x.
     type = "noise-expression",
     name = "eon_cliff_elevation",
-    expression = "lerp(cliff_elevation_nauvis, eon_elevation_blended, eon_gleba_blend_fast) + eon_volcano_cliff_spike + (cliff_elevation_0 - 10)"
+    expression = "lerp(cliff_elevation_nauvis, (2 * eon_elevation_blended - 50) / 3, eon_gleba_blend) + eon_volcano_cliff_spike + (cliff_elevation_0 - 10)"
   },
   {
     -- Cliffiness with volcanoes enabled, blending to vanilla Gleba density
-    -- (gleba_cliffiness) deep south.
+    -- (gleba_cliffiness) with the FAST morph, like every other field: pure
+    -- nauvis north of the line, pure vanilla gleba a few hundred tiles south.
     type = "noise-expression",
     name = "eon_cliffiness",
     expression = "if(eon_vulcanus_terrain, 1.5, lerp(cliffiness_nauvis, gleba_cliffiness, eon_gleba_blend))"

@@ -1,0 +1,12 @@
+{
+    "name": "eon-probe-glebanauvis",
+    "version": "0.0.1",
+    "title": "EoN gleba-on-nauvis baseline (dev only)",
+    "description": "Swaps gleba map_gen_settings onto nauvis for vanilla baseline measurements.",
+    "author": "morganc",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0.0",
+        "space-age >= 2.0.0"
+    ]
+}

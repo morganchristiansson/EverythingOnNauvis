@@ -19,10 +19,14 @@ local GLEBA_FLORA = {
   "honeycomb-fungus", "honeycomb-fungus-1x1", "honeycomb-fungus-decayed",
   "coral-water", "yellow-lettuce-lichen-cups-1x1", "white-carpet-grass", "mycelium",
 }
--- Nauvis grass tufts that must never appear in deep gleba or on volcano ground.
+-- Nauvis grass tufts that must never appear in deep gleba or on volcano
+-- ground. Green carpet/hairy grass are shared prototypes that vanilla GLEBA
+-- also grows (the mod restores that), so only the others are hard leaks.
 local GRASS = {
-  "green-hairy-grass", "green-carpet-grass", "green-small-grass",
-  "brown-carpet-grass", "brown-hairy-grass",
+  "green-hairy-grass", "green-carpet-grass",
+}
+local NAUVIS_ONLY_GRASS = {
+  "green-small-grass", "brown-carpet-grass", "brown-hairy-grass",
 }
 
 surface = nil
@@ -102,7 +106,7 @@ script.on_init(function()
         local pos = dec.position
         if pos.y >= 1650 then
           local n = dec.decorative.name
-          for _, g in ipairs(GRASS) do
+          for _, g in ipairs(NAUVIS_ONLY_GRASS) do
             if n == g then
               local tile = surface.get_tile(math.floor(pos.x), math.floor(pos.y)).name
               if not is_volcano_tile(tile) then
@@ -122,7 +126,7 @@ script.on_init(function()
         local pos = dec.position
         if pos.y >= 1650 then
           local n = dec.decorative.name
-          for _, g in ipairs(GRASS) do
+          for _, g in ipairs(NAUVIS_ONLY_GRASS) do
             if n == g then
               local tile = surface.get_tile(math.floor(pos.x), math.floor(pos.y)).name
               if is_gleba_tile(tile) then
