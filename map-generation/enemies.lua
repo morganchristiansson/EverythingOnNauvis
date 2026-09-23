@@ -88,20 +88,18 @@ data.raw["noise-expression"]["demolisher_territory_radius"].expression = 512
 -- Size = size-class (0..4 by distance; the ramp scales with volcano frequency
 -- so 600% keeps smalls/mediums much further out) + a per-territory random bit
 -- (eon_demolisher_nudge), so adjacent territories are always within one class
--- of each other (small+medium near spawn, medium+big further out) -- never
--- small+big next to each other. Baby volcanoes get small demolishers only.
+-- of each other. Baby volcanoes get small demolishers only.
 --
--- Territory layout adapts to the volcano:
---   * Large volcanoes (eon_volcano_multi, size factor >= 0.85, room for
---     several demolishers): the inner core (spots > 0.88) is ONE merged
---     territory (id 1) holding the MAMA (big-sized) demolisher; the rest of
---     the core maps to fine 260px voronoi cells -- small ring territories
---     looping around the mama, sized by the normal class+nudge.
---   * Smaller volcanoes: the whole core is id 1 -> a single territory with one
---     normally-sized demolisher.
--- Replaces the old voronoi-cell-id parity mix, which correlated with the
--- volcano cells and left whole neighborhoods (and everything within ~1000
--- tiles of spawn) one uniform size.
+-- Territory id = ONE voronoi cell alone (1100px): no mama, no rings, no
+-- per-volcano tiers. The mother/ring experiments never produced consistent
+-- results -- the mother disc's area depends on the spot-field peak (which
+-- varies per cone), so identical-looking cones came out with 3-chunk mothers
+-- or none; and any second dimension (rings, arcs, sub-ids) multiplied the
+-- pieces. One grid keeps it predictable: most cones land in a single cell
+-- (whole cone, one demolisher), the biggest straddle into 2-3 big pieces.
+-- Residuals (irreducible with position-only noise): two touching cones inside
+-- one cell still fuse; a cone can lose a small edge piece to a cell cut.
+-- Dropping small pieces is not an option (unguarded gaps are free mining).
 data:extend({
   {
     type = "noise-expression",
@@ -109,46 +107,11 @@ data:extend({
     expression = "floor(random_penalty_between(0, 2, 479))"
   },
   {
-    -- Inner-core marker for the mama territory (on the at16 field like the
-    -- mask, so chunk sampling aligns). Only consulted on multi volcanoes.
+    -- The territory cell grid (fixed 1100px; voronoi_cell_id needs a constant
+    -- grid). Ids are per-cell floats; abs() keeps them positive.
     type = "noise-expression",
-    name = "eon_demolisher_center",
-    expression = "eon_terr_volcano_spots > 0.88"
-  },
-  {
-    -- Fine voronoi cells for the ring territories (slivers looping around the
-    -- mama). Ids are floats, offset so they never collide with the center's 1.
-    type = "noise-expression",
-    name = "eon_demolisher_ring_cell",
-    expression = "voronoi_cell_id{x = x + 1000 * demolisher_territory_radius, y = y + 1000 * demolisher_territory_radius, seed0 = map_seed, seed1 = 31, grid_size = 260, distance_type = 'manhattan', jitter = 1}"
-  },
-  {
-    -- Coarse voronoi cells for LARGE volcanoes: split through the middle into
-    -- 2-3 chunky territories (grid ~550px; a ~1100px diameter cone spans 2-3
-    -- cells), no mama.
-    type = "noise-expression",
-    name = "eon_demolisher_split_cell",
-    expression = "voronoi_cell_id{x = x + 1000 * demolisher_territory_radius, y = y + 1000 * demolisher_territory_radius, seed0 = map_seed, seed1 = 47, grid_size = 550, distance_type = 'manhattan', jitter = 1}"
-  },
-  {
-    -- Medium volcanoes: room for mama + ring (size factor 0.62-0.90).
-    type = "noise-expression",
-    name = "eon_volcano_multi",
-    expression = "eon_volcano_size_dist >= 0.62"
-  },
-  {
-    -- Large volcanoes: split-through-the-middle layout.
-    type = "noise-expression",
-    name = "eon_volcano_large",
-    expression = "eon_volcano_size_dist >= 0.90"
-  },
-  {
-    -- Coarse voronoi cell, ~one volcano per cell (grid 2200): a per-VOLCANO
-    -- territory id base so touching/merged volcanoes never merge their
-    -- territories (the old shared id-1 merged any adjacent volcanoes).
-    type = "noise-expression",
-    name = "eon_demolisher_volcano_cell",
-    expression = "voronoi_cell_id{x = x + 1000 * demolisher_territory_radius, y = y + 1000 * demolisher_territory_radius, seed0 = map_seed, seed1 = 13, grid_size = 2200, distance_type = 'manhattan', jitter = 1}"
+    name = "eon_demolisher_cell",
+    expression = "abs(voronoi_cell_id{x = x + 1000 * demolisher_territory_radius, y = y + 1000 * demolisher_territory_radius, seed0 = map_seed, seed1 = 47, grid_size = 1100, distance_type = 'manhattan', jitter = 1})"
   },
   {
     -- Baby volcanoes (small size roll): only small demolishers fit.
@@ -159,27 +122,17 @@ data:extend({
 })
 
 data.raw["noise-expression"]["demolisher_starting_area"].expression = "if(eon_demolisher_territory, 0, -inf)"
--- Layout per volcano (per-volcano id base + local sub-id): large -> split
--- cells; medium -> mama (sub 0) + ring; small -> one territory (sub 0).
-local volcano_base = "1000 * floor(eon_demolisher_volcano_cell)"
-local sub = function(name, off)
-  return off .. " + (floor(" .. name .. ") - 100 * floor(" .. name .. " / 100))"
-end
-local ring_sub = sub("eon_demolisher_ring_cell", "100")
-local split_sub = sub("eon_demolisher_split_cell", "200")
 data.raw["noise-expression"]["demolisher_territory_expression"].expression =
-    "if(eon_demolisher_territory, " .. volcano_base .. " + if(eon_volcano_large, " .. split_sub .. ", if(eon_volcano_multi, if(eon_demolisher_center, 0, " .. ring_sub .. "), 0)), -inf)"
+    "if(eon_demolisher_territory, 1e6 + eon_demolisher_cell, -inf)"
 
--- Sizes: mama = 2 (big; medium max on small-cap ground); ring/split/single
--- territories get the distance class + random nudge. Babies: 0 (small) only.
+-- Sizes: distance class + random nudge (medium max on small-cap ground); babies:
+-- 0 (small) only.
 local rampt = "((30 * 32) * eon_volcanism * sqrt(control:vulcanus_volcanism:frequency))"
 local sized = "eon_demolisher_nudge + floor(clamp(distance / " .. rampt .. " - 0.25, 0, 4))"
 local norm = "min(4, " .. sized .. ")"
 local cap = "min(1, " .. sized .. ")"
-local norm_branch = "if(eon_volcano_large, " .. norm .. ", if(eon_volcano_multi, if(eon_demolisher_center, 2, " .. norm .. "), " .. norm .. "))"
-local cap_branch = "if(eon_volcano_large, " .. cap .. ", if(eon_volcano_multi, if(eon_demolisher_center, min(1, 2), " .. cap .. "), " .. cap .. "))"
 data.raw["noise-expression"]["demolisher_variation_expression"].expression =
-    "if(eon_volcano_baby, 0, if(eon_volcano_small_cap > 1, " .. norm_branch .. ", " .. cap_branch .. ")) + (-99 * no_enemies_mode)"
+    "if(eon_volcano_baby, 0, if(eon_volcano_small_cap > 1, " .. norm .. ", " .. cap .. ")) + (-99 * no_enemies_mode)"
 
 
 --------------------------------------------------------------------------------

@@ -421,6 +421,114 @@ script.on_init(function()
     end
     v.nearest_demolisher = minp and math.floor(math.sqrt(minp)) or -1
   end
+  -- Territory introspection: map every generated chunk to its territory, record
+  -- territory sizes (chunk counts) and per-volcano territory census, plus the
+  -- specific problem coordinates the user reported.
+  do
+    local terr_by_chunk = {}
+    local terr_sizes = {}
+    local terr_units = {}
+    for cx = -math.ceil(RADIUS / 32), math.ceil(RADIUS / 32) do
+      for cy = -math.ceil(RADIUS / 32), math.ceil(RADIUS / 32) do
+        local t = surface.get_territory_for_chunk({ cx, cy })
+        if t and t.valid then
+          -- tostring(t) is the class name for every territory; key by the
+          -- territory's first chunk instead (a chunk belongs to one territory).
+          local chunks = t.get_chunks()
+          local c0 = chunks[1]
+          local key = c0.x .. "," .. c0.y
+          terr_by_chunk[cx .. "," .. cy] = key
+          if not terr_sizes[key] then
+            terr_sizes[key] = #chunks
+            local units = t.get_segmented_units()
+            local unic = 0
+            for _ in pairs(units) do unic = unic + 1 end
+            terr_units[key] = unic
+          end
+        end
+      end
+    end
+    acid["territory_total"] = (function()
+      local n = 0
+      for _ in pairs(terr_sizes) do n = n + 1 end
+      return n
+    end)()
+    acid["terr_size_hist"] = (function()
+      local h = {}
+      for _, s in pairs(terr_sizes) do
+        local b = s < 4 and "lt4" or (s < 8 and "4-7" or (s < 15 and "8-14" or (s < 25 and "15-24" or "25+")))
+        h[b] = (h[b] or 0) + 1
+      end
+      return h
+    end)()
+    for _, v in pairs(volcanoes) do
+      local seen = {}
+      local list = {}
+      for dx = -16, 16 do
+        for dy = -16, 16 do
+          local key = terr_by_chunk[(math.floor(v.x / 32) + dx) .. "," .. (math.floor(v.y / 32) + dy)]
+          if key and not seen[key] then
+            seen[key] = true
+            list[#list + 1] = { size = terr_sizes[key], units = terr_units[key] }
+          end
+        end
+      end
+      table.sort(list, function(a, b) return a.size > b.size end)
+      v.territories = list
+    end
+    -- Exact dumps at user-reported coords.
+    local points = {
+      { name = "m_too_many", x = -608, y = 29 },
+      { name = "m_L", x = -366, y = 922 },
+      { name = "m_3chunk", x = -169, y = 826 },
+      { name = "m_2x3chunk", x = 594, y = -528 },
+      { name = "m_cramped2", x = 1313, y = -768 },
+      { name = "m_merge2", x = -273, y = 837 },
+      { name = "m_sliver", x = -690, y = 19 },
+      { name = "m_mother2", x = 617, y = -503 },
+      { name = "m_corner2", x = 672, y = -504 },
+      { name = "m_fine_a", x = -610, y = 29 },
+      { name = "m_fine_b", x = 442, y = 135 },
+      { name = "m_big_no_mama", x = -137, y = 730 },
+      { name = "m_3chunk2", x = -688, y = 58 },
+    }
+    local pd = {}
+    for _, p in pairs(points) do
+      local t = surface.get_territory_for_chunk({ math.floor(p.x / 32), math.floor(p.y / 32) })
+      if t and t.valid then
+        local chunks = t.get_chunks()
+        local minx, maxx, miny, maxy = 9e9, -9e9, 9e9, -9e9
+        local pts = {}
+        for _, c in pairs(chunks) do
+          minx = math.min(minx, c.x); maxx = math.max(maxx, c.x)
+          miny = math.min(miny, c.y); maxy = math.max(maxy, c.y)
+          pts[#pts + 1] = { x = c.x, y = c.y }
+        end
+        local grid = {}
+        for _, c in pairs(pts) do
+          local row = c.y - miny
+          local col = c.x - minx
+          grid[row] = grid[row] or {}
+          grid[row][col] = 1
+        end
+        local rows = {}
+        for r = 0, maxy - miny do
+          local s = ""
+          for cc = 0, maxx - minx do
+            s = s .. ((grid[r] and grid[r][cc]) and "#" or ".")
+          end
+          rows[#rows + 1] = s
+        end
+        local units = t.get_segmented_units()
+        local unic = 0
+        for _ in pairs(units) do unic = unic + 1 end
+        pd[p.name] = { size = #chunks, bbox = (maxx - minx + 1) .. "x" .. (maxy - miny + 1), units = unic, shape = rows }
+      else
+        pd[p.name] = { size = 0, shape = { "(no territory)" } }
+      end
+    end
+    acid["territory_points"] = pd
+  end
   helpers.write_file("eon-calcite-report.json", helpers.table_to_json({
     seed = game.default_map_gen_settings.seed,
     radius = RADIUS,

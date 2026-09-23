@@ -106,7 +106,9 @@ def main():
     print(f"stains-small sampled={d['stain_total']} dist-to-calcite p50/p90/max = "
           f"{d['stain_dist_p50']}/{d['stain_dist_p90']}/{d['stain_dist_max']}")
     for kind, a in d["acid"].items():
-        if kind in ("all_resources", "demolishers"):
+        if kind in ("all_resources", "demolishers", "territory_total", "terr_size_hist", "territory_points"):
+            continue
+        if not isinstance(a, dict):
             continue
         amt = f" amount={a['total_amount']}" if "total_amount" in a else ""
         tiles = f" tiles={a.get('tiles')}" if 'tiles' in a else ""
@@ -126,9 +128,24 @@ def main():
         print(f"  ({v['x']},{v['y']}) samples={v['n']} lava={v['lava']} cliffs={nb} "
               f"bins={bins} geysers={v.get('geysers_near_450')}")
     print(f"demolishers: {dict(sorted(d['acid'].get('demolishers', {}).items()))}")
+    print(f"territories: {d['acid'].get('territory_total')} size_hist={d['acid'].get('terr_size_hist')}")
+    # E2E guard for demolisher territory work: no territory may be so small a
+    # demolisher cannot patrol it (3 chunks or less = cramped, playtest-failed).
+    hist = d['acid'].get('terr_size_hist') or {}
+    lt4 = hist.get('lt4', 0)
+    p47 = hist.get('4-7', 0)
+    if lt4 > 0:
+        print(f"  FAIL: {lt4} territories with <4 chunks (cramped demolisher)")
+        sys.exit(1)
+    print(f"  territories with 4-7 chunks={p47} (allowed, playtest wiggle)")
+    for name, pd in (d['acid'].get('territory_points') or {}).items():
+        print(f"  [{name}] size={pd.get('size')} bbox={pd.get('bbox')} units={pd.get('units')}")
+        for r in (pd.get('shape') or []):
+            print(f"      {r}")
     for v in sorted(d["volcanoes"], key=lambda v: -v["n"]):
         dms = "+".join(f"{k}:{c}" for k, c in sorted(v.get('demolishers_600', {}).items(), key=lambda kv: -kv[1]))
-        print(f"  volc ({v['x']},{v['y']}) samples={v['n']} lava={v['lava']} demos=[{dms or 'none'}] nearest={v.get('nearest_demolisher')}")
+        trs = ",".join(f"{t['size']}(u{t['units']})" for t in v.get('territories', []))
+        print(f"  volc ({v['x']},{v['y']}) samples={v['n']} tern={len(v.get('territories', []))} sizes=[{trs}] demos=[{dms or 'none'}] nearest={v.get('nearest_demolisher')}")
     print("largest patches:")
     for p in sorted(d["patches"], key=lambda p: -p["richness"])[:12]:
         print(f"  ({p['x']},{p['y']}) n={p['entities']} rich={p['richness']} "
