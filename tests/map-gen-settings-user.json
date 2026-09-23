@@ -1,0 +1,9 @@
+{
+    "autoplace_controls": {
+        "vulcanus_volcanism": {"frequency": 2, "size": 1, "richness": 1},
+        "tungsten_ore": {"frequency": 1, "size": 1, "richness": 1},
+        "calcite": {"frequency": 1.33, "size": 1, "richness": 0.75},
+        "sulfuric_acid_geyser": {"frequency": 1, "size": 1, "richness": 1},
+        "enemy-base": {"frequency": 2, "size": 2, "richness": 1}
+    }
+}

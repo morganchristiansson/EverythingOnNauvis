@@ -2,6 +2,27 @@
 Version: 0.1.10
 Date: 2026-09-XX
   Changes:
+    - Demolisher territories SPLIT: medium+ volcanoes get two territories
+      (west half + east half) instead of one, small volcanoes stay whole, and
+      overlapping/merged volcanoes no longer collapse into a single territory.
+      The cut is anchored by the volcano FIELD GRADIENT, not any world lattice:
+      the territory index compares the volcano spot field at x+32 vs x-32, whose
+      sign flips exactly at the deployed peak column (probe-verified: lossless
+      partition of the mask, cut within ~1 column of the lava centroid, immune
+      to the spot-deployment jitter that broke lattice-anchored cuts). Small
+      cones (size_dist < 0.55) are exempt so tiny halves never drop under the
+      territory floor (unguarded seams). Residual: the corner of a big cone
+      that pokes into a neighbouring voronoi cell keeps its own small territory
+      (~1-2 per map, guarded) -- the alternative is an unguarded gap.
+    - Demolisher SIZE now scales with volcano size, not distance: tier by
+      eon_volcano_size_dist (small < 0.55, medium 0.55-0.8, big >= 0.8), plus a
+      per-territory nudge (0/1) so the two halves of a split cone are adjacent
+      size classes (small+medium / medium+big, never small+big). Small-only
+      cones cap at medium.
+    - Probe tooling: territory grouping is now verifiable headless via
+      LuaTerritory.get_chunks()/get_segmented_units() (tests/eon-probe-grouping,
+      tests/probe_split_grouping.py - the dedicated territory E2E; unguarded-lava
+      quota + leak guard).
     - Volcanoes are real cones now: the surface elevation property carries the
       FFF-390 cone profile (min(x, P - x)) -- tiles rise from the folds foot to
       a crest at the lava edge and drop back toward the center, so the lava

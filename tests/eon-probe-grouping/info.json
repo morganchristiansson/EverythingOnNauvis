@@ -1,0 +1,13 @@
+{
+    "name": "eon-probe-grouping",
+    "version": "0.0.1",
+    "title": "EoN territory grouping probe (dev only)",
+    "description": "Dumps per-chunk territory ids + territory sizes + demolisher units via the LuaTerritory API.",
+    "author": "morganc",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0.0",
+        "space-age >= 2.0.0",
+        "EverythingOnNauvis-morganc >= 0.1.0"
+    ]
+}

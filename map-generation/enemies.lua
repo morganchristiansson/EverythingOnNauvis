@@ -64,6 +64,12 @@ data.raw.planet["nauvis"].map_gen_settings.territory_settings = data.raw.planet[
 -- interior lands in one multi-chunk territory, so the floor only needs to catch
 -- the leftover 1x1/2x1 cell slivers that strand a demolisher on a single patrol
 -- point (tail-chasing). 3 drops those while keeping small volcano cores.
+--
+-- The floor MUST stay low: raising it turns cell-straddle nibbles and tiny
+-- cones into unguarded territory (free access to lava/tungsten/acid geysers).
+-- Nibbles that survive as 3-4-chunk territories are the accepted cost of no
+-- unguarded gaps (playtested at 200% volcanism: at most one per map, and it
+-- keeps its volcanoes guarded).
 data.raw.planet["nauvis"].map_gen_settings.territory_settings.minimum_territory_size = 3
 
 -- Demolisher territory follows the volcano-terrain tile mask (eon_vulcanus_terrain),
@@ -85,27 +91,23 @@ data.raw["noise-expression"]["demolisher_territory_radius"].expression = 512
 
 -- Demolisher SIZES and TERRITORY LAYOUT.
 --
--- Size = size-class (0..4 by distance; the ramp scales with volcano frequency
--- so 600% keeps smalls/mediums much further out) + a per-territory random bit
--- (eon_demolisher_nudge), so adjacent territories are always within one class
--- of each other. Baby volcanoes get small demolishers only.
+-- Territory = ONE voronoi cell per volcano (1100px grid), medium+ volcanoes
+-- SPLIT left/right into two territories, small volcanoes kept whole.
 --
--- Territory id = ONE voronoi cell alone (1100px): no mama, no rings, no
--- per-volcano tiers. The mother/ring experiments never produced consistent
--- results -- the mother disc's area depends on the spot-field peak (which
--- varies per cone), so identical-looking cones came out with 3-chunk mothers
--- or none; and any second dimension (rings, arcs, sub-ids) multiplied the
--- pieces. One grid keeps it predictable: most cones land in a single cell
--- (whole cone, one demolisher), the biggest straddle into 2-3 big pieces.
--- Residuals (irreducible with position-only noise): two touching cones inside
--- one cell still fuse; a cone can lose a small edge piece to a cell cut.
--- Dropping small pieces is not an option (unguarded gaps are free mining).
+-- The split cut is anchored by the volcano FIELD GRADIENT, not any world
+-- lattice: evaluating the merged volcano field at x+-32px and comparing signs
+-- tells which side of THIS volcano's peak the chunk is on. The sign crosses
+-- exactly at the deployed peak column (probe-verified: lossless partition of
+-- the territory mask, cut within ~1 column of the lava centroid, immune to
+-- the spot-deployment jitter that kills lattice-anchored cuts). The gradient
+-- also SPLITS MERGED volcanoes: a fused pair in one cell no longer shares one
+-- id -- each half gets its own id, so the blob becomes 2 territories instead
+-- of 1 (west halves + east halves; islands across member volcanoes stay, judge
+-- grouping in the real game). Small volcanoes (eon_volcano_size_dist < 0.55)
+-- stay whole so tiny halves never drop under the territory floor (unguarded
+-- seams are free mining, not acceptable).
+-- Territory id per cell: 1 = whole (small), 2 = west half, 3 = east half.
 data:extend({
-  {
-    type = "noise-expression",
-    name = "eon_demolisher_nudge",
-    expression = "floor(random_penalty_between(0, 2, 479))"
-  },
   {
     -- The territory cell grid (fixed 1100px; voronoi_cell_id needs a constant
     -- grid). Ids are per-cell floats; abs() keeps them positive.
@@ -114,25 +116,50 @@ data:extend({
     expression = "abs(voronoi_cell_id{x = x + 1000 * demolisher_territory_radius, y = y + 1000 * demolisher_territory_radius, seed0 = map_seed, seed1 = 47, grid_size = 1100, distance_type = 'manhattan', jitter = 1})"
   },
   {
-    -- Baby volcanoes (small size roll): only small demolishers fit.
+    -- Field gradient at the chunk corner: merged volcano field sampled 32px
+    -- east minus 32px west (inline arithmetic offsets of eon_volcano_spots_at
+    -- -- named-function position args DON'T move, inline x +- offset DOES).
+    -- dir > 0 <=> the field rises toward the east <=> the peak is east of me
+    -- <=> I am on the WEST side of the peak.
     type = "noise-expression",
-    name = "eon_volcano_baby",
-    expression = "eon_volcano_size_dist < 0.62"
+    name = "eon_demolisher_dir",
+    expression = "(max(eon_volcano_spots_at{x_offset = 32, y_offset = 0, seed = 1, spacing_mult = 1, size_mult = 0.75}, eon_volcano_spots_at{x_offset = 32, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25}) - max(eon_volcano_spots_at{x_offset = -32, y_offset = 0, seed = 1, spacing_mult = 1, size_mult = 0.75}, eon_volcano_spots_at{x_offset = -32, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25}))"
+  },
+  {
+    -- Zone: 1 = whole (small volcano, exempt from the split), 2 = west half,
+    -- 3 = east half.
+    type = "noise-expression",
+    name = "eon_demolisher_zone",
+    expression = "if(eon_volcano_size_dist < 0.55, 1, if(eon_demolisher_dir < 0, 3, 2))"
+  },
+  {
+    -- Per-territory size nudge (0 or 1): the variation expression samples it
+    -- once per territory, so the two halves of a split cone roll independently
+    -- and stay within one class of each other (small+medium / medium+big,
+    -- never small+big).
+    type = "noise-expression",
+    name = "eon_demolisher_nudge",
+    expression = "floor(random_penalty_between(0, 1.99999, 479))"
   },
 })
 
 data.raw["noise-expression"]["demolisher_starting_area"].expression = "if(eon_demolisher_territory, 0, -inf)"
 data.raw["noise-expression"]["demolisher_territory_expression"].expression =
-    "if(eon_demolisher_territory, 1e6 + eon_demolisher_cell, -inf)"
+    "if(eon_demolisher_territory, 1e6 + 1000 * eon_demolisher_cell + eon_demolisher_zone, -inf)"
 
--- Sizes: distance class + random nudge (medium max on small-cap ground); babies:
--- 0 (small) only.
-local rampt = "((30 * 32) * eon_volcanism * sqrt(control:vulcanus_volcanism:frequency))"
-local sized = "eon_demolisher_nudge + floor(clamp(distance / " .. rampt .. " - 0.25, 0, 4))"
-local norm = "min(4, " .. sized .. ")"
-local cap = "min(1, " .. sized .. ")"
+-- Sizes: tier by volcano size (eon_volcano_size_dist -- the same smooth roll
+-- that scales the cone): small (<0.55) -> small (class 0), medium (0.55..0.8)
+-- -> medium (1), large+ (>=0.8) -> big (2). No distance ramp: a cone's class
+-- never depends on map radius. A per-territory nudge (eon_demolisher_nudge,
+-- 0 or 1, sampled once per territory) pushes each half one class up, so a
+-- split cone gets two demolishers within one class of each other (never
+-- small+big on the same volcano). Small-only ground (strong small spot
+-- system, no big field) caps the class at medium so small-system cones never
+-- host a big demolisher; the <0.55 tier already yields smalls.
+local tier = "if(eon_volcano_size_dist < 0.55, 0, if(eon_volcano_size_dist < 0.8, 1, 2))"
+local class = "min(2, " .. tier .. " + eon_demolisher_nudge)"
 data.raw["noise-expression"]["demolisher_variation_expression"].expression =
-    "if(eon_volcano_baby, 0, if(eon_volcano_small_cap > 1, " .. norm .. ", " .. cap .. ")) + (-99 * no_enemies_mode)"
+    "if(eon_volcano_small_cap > 1, " .. class .. ", min(" .. class .. ", 1)) + (-99 * no_enemies_mode)"
 
 
 --------------------------------------------------------------------------------
