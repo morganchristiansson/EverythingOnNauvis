@@ -68,31 +68,85 @@ if holmium_ore then
         "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(" .. current .. "))"
   end
 else
-  -- Keep scrap: rebuild it as a plain nauvis ore. Vanilla scrap has
-  -- probability 0 (it only spawned via Fulgora's per-planet property
-  -- overrides, which do not exist here), and the old branch wrapped that dead
-  -- 0, so scrap never rendered. Same params holmium-ore would use; masked
-  -- nauvis-only like every other ore -- off volcano ground, off
-  -- aquilo/ammonia/gleba -- so it never stacks on calcite (volcano-anchored)
-  -- or the base ores (resource-autoplace gives scrap its own patch-set index
-  -- on the shared default grid, so its candidates can't coincide with
-  -- iron/copper/etc).
+  -- Keep scrap: restore the VANILLA FULGORA placement (structure-cell blocks,
+  -- frequency = % of cells covered, roads carve corridors, dense vault spots),
+  -- transplanted onto the merged map and masked nauvis-only like every other
+  -- ore. Two substitutions are required to make the vanilla expression mean
+  -- something here:
+  --   * abs_mult_height_over (fulgora_elevation > fulgora_coastline + 10 --
+  --     FULGORA's own land/sea profile, meaningless over Nauvis terrain) is
+  --     replaced by eon_scrap_land, a NAUVIS land gate on the raw
+  --     elevation_nauvis field (NOT the blended elevation property rebind: a
+  --     stale per-surface property table from a continuing save would silently
+  --     move the gate -- the live-server reset only rewrites mgs.seed).
+  --   * Ore overlap: vanilla scrap is a tile-level cell mask, so the
+  --     resource-autoplace patch-set trick (skip_span/skip_offset in
+  --     spot_noise) that keeps spot-based ores apart cannot de-overlap it --
+  --     cell blocks are ~22 tiles across and would swallow whole iron/copper
+  --     patches. Instead the probability is multiplied by eon_scrap_ore_exclusion:
+  --     0 wherever ANY base ore's probability is positive, 1 elsewhere.
+  --     Sign-safe: the vanilla expression is non-negative everywhere and the
+  --     exclusion is a 0/1 if(), so excluded tiles read 0, never +inf.
   data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["scrap"] = {}
   data.raw.planet["nauvis"].map_gen_settings.autoplace_settings.entity.settings["scrap"] = {}
-  local resource_autoplace = require("resource-autoplace")
-  local scrap_ap = resource_autoplace.resource_autoplace_settings {
-    name = "scrap",
-    order = "c-scrap",
-    base_density = 0.4,
-    base_spots_per_km2 = 1.25,
-    has_starting_area_placement = false,
-    random_spot_size_minimum = 2,
-    random_spot_size_maximum = 4,
-    regular_rq_factor_multiplier = 1
+
+  -- Build the exclusion from the base ores' ALREADY territory-masked
+  -- probability expressions (wrapped at the top of this file): value is
+  -- (size>0)*clamp(patch,0,1) on the nauvis plains (strictly > 0 inside a
+  -- patch), 0 off-patch, -inf under the territory masks (compare as "not
+  -- present"). Any positive tile must never also carry scrap.
+  local function scrap_exclusion_term(name)
+    return "(" .. data.raw.resource[name].autoplace.probability_expression .. " > 0)"
+  end
+  data:extend({
+    {
+      type = "noise-expression",
+      name = "eon_scrap_ore_exclusion",
+      expression = "if(" .. scrap_exclusion_term("iron-ore") .. " + " ..
+                              scrap_exclusion_term("copper-ore") .. " + " ..
+                              scrap_exclusion_term("coal") .. " + " ..
+                              scrap_exclusion_term("stone") .. " + " ..
+                              scrap_exclusion_term("uranium-ore") .. " + " ..
+                              scrap_exclusion_term("crude-oil") .. ", 0, 1)"
+    },
+    {
+      -- Nauvis land gate replacing vanilla's abs_mult_height_over. Raw
+      -- elevation_nauvis (property-immune), water level 0 plus a small shore
+      -- margin so scrap hugs land like vanilla Fulgora, without the floating
+      -- blocks the fulgora elevation field would stamp over Nauvis lakes.
+      type = "noise-expression",
+      name = "eon_scrap_land",
+      expression = "elevation_nauvis > 0.1"
+    },
+  })
+
+  -- Vanilla Fulgora scrap autoplace (planet-fulgora-map-gen.lua), unchanged
+  -- except abs_mult_height_over -> eon_scrap_land and the ore-exclusion wrap
+  -- below. The fulgora_* fields it references are pure map_seed noises that
+  -- survive on the merged map (they drive the same cell/road/vault geometry);
+  -- control:fulgora_islands:frequency still exists in this config (it is
+  -- deleted only when holmium replaces scrap).
+  data.raw.resource["scrap"].autoplace =
+  {
+    control = "scrap",
+    order = "b",
+    probability_expression = "(control:scrap:size > 0)\z
+        * (1 - fulgora_starting_mask)\z
+        * (min((fulgora_structure_cells < min(0.1 * frequency, 0.05 + 0.05 * frequency))\z
+           * (1 + fulgora_structure_subnoise) * eon_scrap_land * fulgora_artificial_mask\z
+           + (fulgora_spots_prebanding < (1.2 + 0.4 * linear_size)) * fulgora_vaults_and_starting_vault * 10,\z
+           0.5) * (1 - fulgora_road_paving_2c))",
+    richness_expression = "(1 + fulgora_structure_subnoise) * 1000 * (7 / (6 + frequency) + 100 * fulgora_vaults_and_starting_vault) * richness",
+    local_expressions =
+    {
+      frequency = "control:scrap:frequency", -- limited application
+      size = "control:scrap:size", -- Size also affects noise peak height so impacts richness as a sideeffect...
+      linear_size = "slider_to_linear(size, -1, 1)", -- the intention is to increase coverage (access & mining speed) without significantly affecting richness.
+      richness = "control:scrap:richness"
+    }
   }
-  data.raw.resource["scrap"].autoplace = scrap_ap
   data.raw.resource["scrap"].autoplace.probability_expression =
-      "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(eon_mask_off_gleba_territory(eon_mask_off_vulcano_terrain(eon_mask_resource_territory(" .. scrap_ap.probability_expression .. ")))))"
+      "eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(eon_mask_off_gleba_territory(eon_mask_off_vulcano_terrain(eon_mask_resource_territory(eon_scrap_ore_exclusion * (" .. data.raw.resource["scrap"].autoplace.probability_expression .. "))))))"
 end
 
 --------------------------------------------------------------------------------

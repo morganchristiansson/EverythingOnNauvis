@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
-Version: 0.1.10
+Version: 0.1.12
 Date: 2026-09-XX
   Changes:
     - Demolisher territories SPLIT: medium+ volcanoes get two territories
@@ -138,6 +138,27 @@ Date: 2026-09-XX
     - Gleba lakes restored: wetland-blue-slime and gleba-deep-lake are registered on Nauvis again (unlisted tiles never place), with water handing over water-to-water at the border.
     - Gleba no longer takes priority over volcano terrain: the full volcano (including the outer folds-flat ring, i.e. demolisher territory) now beats Gleba everywhere, per aquilo > vulcanus > gleba > nauvis.
     - Gleba territory now grows cliff-gleba cliffs: cliff elevation/density blend toward Gleba fields in the south and control.lua re-skins new-chunk cliffs on Gleba tiles (same pattern as cliff-vulcanus).
+    - Scrap (when eon-holmium-ore is off): restored the VANILLA FULGORA
+      placement and shapes instead of the round nauvis-style blob patches -
+      structure-cell blocks (frequency = % of cells covered, capped at 600%, so
+      the slider behaves like vanilla), per-cell sub-noise, road carves, dense
+      vault spots, no scrap in the starting area, vanilla richness. Transplanted
+      onto the merged map with two substitutions: the fulgora elevation/coast
+      land gate became a nauvis land gate (eon_scrap_land on the raw
+      elevation_nauvis field, water level 0 + shore margin), and the tile mask
+      is gated by eon_scrap_ore_exclusion (0 wherever iron/copper/coal/stone/
+      uranium/crude-oil probability > 0) so scrap never shares a tile with
+      another ore (sign-safe if() form; the resource-autoplace patch-set skip
+      only de-overlaps spot grids, not ~22-tile cell blocks).
+    - Live-server gotcha for continuing saves: a surface's baked
+      autoplace_settings.entity.settings never re-syncs from the planet
+      prototype - a save created while eon-holmium-ore was on has 'holmium-ore'
+      registered but NO 'scrap', so scrap never autoplaces on it (verified live:
+      entity_scrap=false, 0 scrap on the whole map while iron works). Scenario
+      resets only rewrite mgs.seed, so this never self-heals. Fix the surface
+      registry (and regenerate chunks) to heal such saves - see
+      map-gen-settings-eon-defaults.json.
+
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.9
 Date: 2025-05-XX

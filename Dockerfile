@@ -13,8 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zip \
     unzip \
     lua5.4 \
+    ruby \
     python3-pil \
     python3-numpy \
+    python3-pip \
+    python3-rcon \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
@@ -25,6 +28,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
 # ── npm global packages ─────────────────────────────────────────────────────
 RUN npm install -g @earendil-works/pi-coding-agent@0.86.1 && \
     pi --version
+
 
 RUN mkdir -p /workspace
 WORKDIR /workspace
