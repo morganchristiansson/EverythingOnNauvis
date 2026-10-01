@@ -1,0 +1,152 @@
+{
+  "default_enable_all_autoplace_controls": true,
+  "autoplace_controls": {
+    "calcite": {
+      "frequency": 1.33,
+      "size": 1,
+      "richness": 0.75
+    },
+    "coal": {
+      "frequency": 6,
+      "size": 1,
+      "richness": 1
+    },
+    "copper-ore": {
+      "frequency": 6,
+      "size": 1,
+      "richness": 1
+    },
+    "crude-oil": {
+      "frequency": 6,
+      "size": 1,
+      "richness": 1
+    },
+    "enemy-base": {
+      "frequency": 2,
+      "size": 2,
+      "richness": 1
+    },
+    "fluorine_vent": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "gleba_enemy_base": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "gleba_plants": {
+      "frequency": 6,
+      "size": 1,
+      "richness": 1
+    },
+    "gleba_water": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "iron-ore": {
+      "frequency": 6,
+      "size": 1,
+      "richness": 1
+    },
+    "lithium_brine": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "nauvis_cliff": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "rocks": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "starting_area_moisture": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "stone": {
+      "frequency": 6,
+      "size": 1,
+      "richness": 1
+    },
+    "sulfuric_acid_geyser": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "trees": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "tungsten_ore": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "uranium-ore": {
+      "frequency": 1,
+      "size": 1,
+      "richness": 1
+    },
+    "vulcanus_volcanism": {
+      "frequency": 2,
+      "size": 1,
+      "richness": 1
+    },
+    "water": {
+      "frequency": 1,
+      "size": 1.33,
+      "richness": 1
+    }
+  },
+  "autoplace_settings": {},
+  "property_expression_names": {
+    "eon_gleba_south_offset": 500,
+    "entity:gleba-spawner:probability": 0,
+    "moisture": "eon_moisture_blended",
+    "aux": "eon_aux_blended",
+    "elevation": "eon_elevation_blended",
+    "cliff_elevation": "eon_cliff_elevation",
+    "cliffiness": "eon_cliffiness",
+    "entity:sulfuric-acid-geyser:probability": "vulcanus_sulfuric_acid_geyser_probability",
+    "entity:sulfuric-acid-geyser:richness": "vulcanus_sulfuric_acid_geyser_richness"
+  },
+  "starting_points": [
+    {
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "seed": null,
+  "width": 2000000,
+  "height": 2000000,
+  "starting_area": 1.33,
+  "peaceful_mode": false,
+  "no_enemies_mode": false,
+  "cliff_settings": {
+    "name": "cliff",
+    "control": "",
+    "cliff_elevation_0": 10,
+    "cliff_elevation_interval": 40,
+    "cliff_smoothing": 1,
+    "richness": 1
+  },
+  "territory_settings": {
+    "units": [
+      "small-demolisher",
+      "medium-demolisher",
+      "big-demolisher"
+    ],
+    "territory_index_expression": "demolisher_territory_expression",
+    "territory_variation_expression": "demolisher_variation_expression",
+    "minimum_territory_size": 3
+  }
+}

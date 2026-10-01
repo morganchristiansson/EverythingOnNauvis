@@ -16,5 +16,6 @@ services:
       - /home/morgan/work/factorio-legendary-deathworld:/factorio-legendary-deathworld:ro
       - s25client-home:/home/ubuntu
     working_dir: /workspace
+    network_mode: host
 volumes:
   s25client-home:

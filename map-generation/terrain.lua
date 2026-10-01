@@ -2,10 +2,12 @@
 -- Fixes map generation for terrain
 --------------------------------------------------------------------------------
 local data_util = require("data-util")
+-- The volcano expressions' numbers, shared with the runtime mirror so a tune is
+-- one edit (see volcano-constants.lua). Formatted back into expression text
+-- below; `num` keeps each literal exactly round-trippable.
+local VC = require("volcano-constants")
 
 local terrain = {}
-
-log("[EoN-morganc] build marker: fades-v7-signsafe")
 
 -- Base-prototype decoratives that vanilla Gleba ALSO grows, via its planet
 -- property_expression_names rebinding these shared prototypes to
@@ -143,7 +145,8 @@ data:extend({
     -- Define starting radius
     type = "noise-expression",
     name = "eon_starting_radius",
-    expression = "0.7 * 0.75"
+    expression = string.format("%s * %s", VC.num(VC.starting_radius.base),
+      VC.num(VC.starting_radius.size))
   },
 })
 
@@ -1527,7 +1530,10 @@ data:extend({
     -- nearby volcanoes. Favorability is deliberately NOT gated: gated fields
     -- would make weak, lava-less volcanoes in the ramp.
     name = "eon_volcano_spawn_gate",
-    expression = "clamp((distance - 425 * eon_starting_radius) / (425 * eon_starting_radius), 0, 1)"
+    -- 425 * starting radius, twice: the gate is a linear ramp that reaches 1 at
+    -- one starting radius out.
+    expression = string.format("clamp((distance - %s * eon_starting_radius) / (%s * eon_starting_radius), 0, 1)",
+      VC.num(VC.spawn_gate.radius_starts), VC.num(VC.spawn_gate.radius_starts))
   },
   {
     -- Volcano size: median keeps the pre-shrink scale (most cones large,
@@ -1540,7 +1546,18 @@ data:extend({
     -- compilation with "Expected a constant: spotNoise[3]").
     type = "noise-expression",
     name = "eon_volcano_size_dist",
-    expression = "min((0.90 + 0.30 * min(distance / 5000, 1)) * (0.55 + 0.90 * clamp(0.5 + 0.5 * multioctave_noise{x = x, y = y, seed0 = map_seed, seed1 = 1977, octaves = 3, persistence = 0.6, input_scale = 1/350, output_scale = 1.6}, 0, 1)) * (0.50 + 0.50 * eon_volcano_spawn_gate), 1.0)"
+    -- Built from volcano-constants.size_dist so the runtime mirror
+    -- (noise-mirror/volcano-cones.lua, M.size_dist) reads the same numbers.
+    expression = string.format(
+      "min((%s + %s * min(distance / %s, 1)) * (%s + %s * clamp(0.5 + 0.5 * multioctave_noise{x = x, y = y, seed0 = map_seed, seed1 = %s, octaves = %s, persistence = %s, input_scale = 1/%s, output_scale = %s}, 0, 1)) * (%s + %s * eon_volcano_spawn_gate), %s)",
+      VC.num(VC.size_dist.ramp_near), VC.num(VC.size_dist.ramp_slope),
+      VC.num(VC.size_dist.ramp_distance), VC.num(VC.size_dist.noise_near),
+      VC.num(VC.size_dist.noise_span), VC.num(VC.size_dist.noise.seed1),
+      VC.num(VC.size_dist.noise.octaves), VC.num(VC.size_dist.noise.persistence),
+      VC.num(VC.size_dist.noise.input_scale_divisor),
+      VC.num(VC.size_dist.noise.output_scale),
+      VC.num(VC.size_dist.gate_near), VC.num(VC.size_dist.gate_span),
+      VC.num(VC.size_dist.cap))
   },
   {
     -- Effective volcanism (size ONLY): vanilla couples the frequency slider in
@@ -1551,7 +1568,8 @@ data:extend({
     -- can normalize distance by it (see enemies.lua).
     type = "noise-expression",
     name = "eon_volcanism",
-    expression = "0.3 + 0.7 * slider_rescale(control:vulcanus_volcanism:size, 3)"
+    expression = string.format("%s + %s * slider_rescale(control:vulcanus_volcanism:size, %s)",
+      VC.num(VC.volcanism.base), VC.num(VC.volcanism.span), VC.num(VC.volcanism.slider_base))
   },
   {
     -- Detail noise with an explicit position offset (base vulcanus_detail_noise has none).
@@ -1591,16 +1609,18 @@ data:extend({
       volcano_area = "lerp(vulcanus_mountains_biome_full_pre_volcano, 0, vulcanus_starting_area)",
       volcanism = "eon_volcanism",
       volcanism_sq = "volcanism * volcanism",
-      volcano_spot_radius = "300 * volcanism * sqrt(1 + control:vulcanus_volcanism:size)",
+      volcano_spot_radius = string.format("%s * volcanism * sqrt(1 + control:vulcanus_volcanism:size)",
+        VC.num(VC.spot_radius.scale)),
       volcano_spot_size = "volcano_spot_radius * size_mult * eon_volcano_size_dist",
-      volcano_spot_spacing = "1500 * volcanism",
+      volcano_spot_spacing = string.format("%s * volcanism", VC.num(VC.spot_spacing.scale)),
       -- Frequency -> density only: smaller candidate cells = more volcanoes.
       -- Rescaled from 5/sqrt(freq) so the highest slider setting yields a
       -- little over twice the volcanoes it used to (measured: volcano count
       -- ~ proportional to 1/cell-area, i.e. ~linear in frequency; 3.5 lands
       -- about 11 volcanoes per 3.2km square at 100% vs 5 before). Cranking
       -- frequency past the GUI max keeps adding.
-      density_multiplier = "3.5 / sqrt(control:vulcanus_volcanism:frequency)"
+      density_multiplier = string.format("%s / sqrt(control:vulcanus_volcanism:frequency)",
+        VC.num(VC.density.divisor))
     }
   },
   {
@@ -1609,50 +1629,26 @@ data:extend({
     -- Whole volcanoes everywhere: spawn protection lives in candidate density
     -- (eon_volcano_spawn_gate), never as field subtraction, so nothing here
     -- can crop a volcano.
-    expression = "max(eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 1, spacing_mult = 1, size_mult = 0.75}, eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25})"
-  },
-  {
-    -- Same spot field as the tiles, sampled 16px up-left so size-cap areas stay
-    -- aligned with the tile rendering. No spawn gate here either: with no spots
-    -- near spawn there is no territory there, and rims may legitimately overlap
-    -- the gate zone. Small and big systems are named separately (not just merged)
-    -- so the demolisher size logic can tell small-only ground apart from big
-    -- ground. These fields feed only demolisher size caps -- territory MEMBERSHIP
-    -- comes from the tile-truth eon_vulcanus_terrain mask (see eon_demolisher_territory).
-    type = "noise-expression",
-    name = "eon_terr_volcano_small",
-    expression = "eon_volcano_spots_at{x_offset = 16, y_offset = 16, seed = 1, spacing_mult = 1, size_mult = 0.75}"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_terr_volcano_big",
-    expression = "eon_volcano_spots_at{x_offset = 16, y_offset = 16, seed = 2, spacing_mult = 1.8, size_mult = 1.25}"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_terr_volcano_spots",
-    expression = "max(eon_terr_volcano_small, eon_terr_volcano_big)"
-  },
-  {
-    -- Size cap for demolishers: small-only volcano ground (strong small field,
-    -- weak big field) grows at most medium demolishers, so big ones never sit
-    -- on small volcanoes. Anywhere big ground is strong, distance decides.
-    type = "noise-expression",
-    name = "eon_volcano_small_cap",
-    expression = "if(eon_terr_volcano_small > 0.5, if(eon_terr_volcano_big > 0.5, 4, 1), 4)"
-  },
-  {
-    -- Territory follows the volcano CORE plus the inner half of the folds-flat skirt
-    -- (eon_demolisher_mask_at16: tile-truth, never off-volcano), evaluated at the
-    -- engine's per-chunk sample point. The probe (see AGENTS.md) showed the territory
-    -- index expression is sampled at ONE fixed world-aligned corner per 32x32 chunk,
-    -- claimed iff expression >= 0 there. The 16px field shift cancels the half-chunk
-    -- SE bias the corner anchoring introduces (measured +15/+16px un-shifted); the
-    -- outer half of the skirt stays a buffer so patrol anchors remain inside volcano
-    -- ground.
-    type = "noise-expression",
-    name = "eon_demolisher_territory",
-    expression = "eon_demolisher_mask_at16"
+    -- ONE spot system, not two. This used to be
+    --   max(eon_volcano_spots_at{seed=1, spacing_mult=1,   size_mult=0.75},
+    --       eon_volcano_spots_at{seed=2, spacing_mult=1.8, size_mult=1.25})
+    -- to "merge into varied volcano sizes". Two spot_noise calls have their own
+    -- candidate placement and their own suggested_minimum_candidate_point_spacing
+    -- and nothing coordinates them, so a big and a small cone land on the same
+    -- spot. Measured on the user's map (seed 1096463296, frequency 6): the closest
+    -- pair sat 64 tiles apart with radii of 192 and 134, and 11 of 6328 pairs were
+    -- closer than half their combined reach -- nearly all one small and one big.
+    --
+    -- Size needs no second stream: volcano_spot_size is already
+    -- radius * size_mult * eon_volcano_size_dist, and size_dist varies per
+    -- candidate, so a single stream already places cones of different sizes. The
+    -- pair bought two discrete classes at the price of a collision class.
+    --
+    -- size_mult is 1.3, not the surviving stream's 1.0 and not the old dense
+    -- stream's 0.75. It is a MEASURED ceiling rather than a preference: at 1.4 the
+    -- cones are big enough that the patrol circle stops fitting inside a claim a
+    -- neighbour has trimmed, and the mirror's self test fails there.
+    expression = "eon_volcano_spots_at{x_offset = 0, y_offset = 0, seed = 1, spacing_mult = 1, size_mult = 1.3}"
   },
   {
     -- Seed: 3329457809 south east
@@ -1708,61 +1704,15 @@ data:extend({
     name = "eon_vulcanus_terrain",
     expression = "max(eon_vulcano_coverage, eon_updated_volcanic_folds_flat) > 0"
   },
-  -- Territory mask chain: the volcano CORE signals (folds + lava rings) evaluated on
-  -- the 16px-shifted spot field (eon_terr_volcano_spots = eon_volcano_spots_at{16,16}).
-  -- The engine samples the territory index at each chunk's top-left corner, so an
-  -- un-shifted mask makes the claimed union sit ~half a chunk SE of the terrain
-  -- (measured +15/+16px on seed 12345); shifting the underlying field 16px NW recenters
-  -- it. Using the core signals (not the outer folds-flat skirt) leaves the rim as a
-  -- buffer: rim/water fringe chunks whose corner only just samples interior no longer
-  -- get claimed, and demolisher patrol anchors stay well inside volcano ground.
-  {
-    type = "noise-expression",
-    name = "eon_mountain_lava_spots_at16",
-    expression = "clamp(vulcanus_threshold(eon_terr_volcano_spots * 1.95 - 0.95, 0.4 * vulcanus_threshold(clamp(vulcanus_plasma(17453, 0.2, 0.4, 10, 20) / 20, 0, 1), 3.5)), 0, 1)"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_lava_mountains_range_at16",
-    expression = "1100 * range_select_base(eon_mountain_lava_spots_at16, 0.3, 10, 1, 0, 1) - eon_offset_vulcano"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_lava_hot_mountains_range_at16",
-    expression = "1000 * range_select_base(eon_mountain_lava_spots_at16, 0.15, 0.35, 1, 0, 1) - eon_offset_vulcano"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_updated_volcanic_folds_at16",
-    expression = "10 * range_select_base(eon_terr_volcano_spots * 1.95 - 0.9, 0.16, 10, 1, 0, 1) - eon_offset_vulcano"
-  },
-  {
-    type = "noise-expression",
-    name = "eon_updated_volcanic_folds_flat_at16",
-    expression = "10 * range_select_base(eon_terr_volcano_spots * 1.95 - 0.9, 0, 0.5, 1, 0, 1) - eon_offset_vulcano"
-  },
-  {
-    -- Core-only territory mask: folds + lava rings on the 16px-shifted field, WITHOUT
-    -- the outer folds-flat skirt. The flat skirt is 0.5-1.5 chunks of gentle rim that
-    -- (a) grabbed rim/water fringe chunks whose corner sampled interior, and (b) put
-    -- patrol anchors on the volcano edge (demolishers circling or starting over water).
-    -- Excluding it leaves the rim as a buffer zone so patrol points stay well inside
-    -- volcano ground, while every lava/folds tile stays covered.
-    type = "noise-expression",
-    name = "eon_vulcanus_core_at16",
-    expression = "max(eon_updated_volcanic_folds_at16, eon_lava_mountains_range_at16, eon_lava_hot_mountains_range_at16) > 0"
-  },
-  {
-    -- Territory mask: the core, plus the INNER edge of the folds-flat skirt (flat
-    -- tiles whose spot field is still above 0.55 -- the sliver nearest the core, a
-    -- small nudge for the rim-edge grains). The skirt add is tile-truth by
-    -- construction ((flat_at16 > 0) is a real tile signal), so it can never claim
-    -- off-volcano ground; keeping it thin means the water-corner rim chunks (whose
-    -- patrol anchors would sit on their deepwater parts) stay unclaimed.
-    type = "noise-expression",
-    name = "eon_demolisher_mask_at16",
-    expression = "max(eon_vulcanus_core_at16, (eon_updated_volcanic_folds_flat_at16 > 0) * (eon_terr_volcano_spots > 0.6))"
-  },
+  -- A whole family of volcano-territory expressions used to live here and is gone:
+  -- the expression index itself (eon_demolisher_cell/dir/zone/nudge, the
+  -- eon_demolisher_territory mask, the eon_volcano_small_cap size cap and the
+  -- eon_terr_volcano_* trio it fed), and before that a "_at16" set of 16px-shifted
+  -- copies whose only job was to compensate for the engine sampling the index at a
+  -- chunk's top-left corner. The runtime mirror in control.lua claims territories by
+  -- cone geometry and never samples a chunk (see features/lua-territory.feature), so
+  -- none of them has a referrer. What remains below is the terrain the volcano
+  -- tiles place, which is still used by cliffs and the other masks.
   {
     -- Volcano profile amplitude: base 300 elevation units (7 cliff rings on
     -- the nauvis 40-unit ladder), scaled by the distance-driven size growth

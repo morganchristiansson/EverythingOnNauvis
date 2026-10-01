@@ -25,7 +25,7 @@ Environment overrides:
 
 import json
 import os
-import shutil
+import re
 import subprocess
 import sys
 import tempfile
@@ -242,6 +242,36 @@ def test_setting_on(data):
           "nuke-effects-vulcanus" not in explosions)
 
 
+def test_mirror_invariants(data):
+    """The invariants the runtime spot mirror holds by ASSUMPTION.
+
+    These are not in noise-mirror/ because the mirror cannot check them: it runs at
+    control stage, where the data-stage expression graph does not exist. Each one
+    is a fact about a shipped prototype that the mirror depends on and cannot
+    see, so the fact is checked here -- against the dump, which is the only place
+    it is still text.
+
+    noise-mirror/spot-candidates.lua first_accepted() returns the first draw of a
+    region's candidate stream and stops. That is the engine's answer ONLY while
+    candidate_spot_count is 1: with a count of 2 the engine would reject a
+    candidate too close to the first and place the second, and the mirror would
+    hand back the rejected one. It used to carry a comment claiming new_volcanoes()
+    "refuses any configuration where the simplification would not hold" -- it
+    refuses nothing, so the claim was doing the work the check does now.
+    """
+    print("Runtime mirror invariants (facts the mirror cannot see):")
+    noise = data.get("noise-function", {})
+    # eon_mountain_volcano_spots is deliberately NOT here: it is a FIELD that calls
+    # eon_volcano_spots_at twice with different seeds, which is where the mirror's
+    # two SYSTEMS come from. One prototype to hold the invariant.
+    name = "eon_volcano_spots_at"
+    expression = noise.get(name, {}).get("expression", "")
+    found = re.search(r"candidate_spot_count\s*=\s*([^,\\]+)", expression)
+    value = found.group(1).strip() if found else None
+    check(f"{name} places one spot per region (the mirror's first-draw shortcut)",
+          value == "1", f"candidate_spot_count = {value!r}")
+
+
 def main():
     if set(os.listdir(MOD_DIR)) is None:
         sys.exit("mod source not found")
@@ -253,7 +283,9 @@ def main():
         set_default_value("false")
         try:
             with tempfile.TemporaryDirectory(prefix="eon-test-on.") as base_dir:
-                test_setting_on(run_dump_data(base_dir))
+                dumped = run_dump_data(base_dir)
+                test_setting_on(dumped)
+                test_mirror_invariants(dumped)
         finally:
             restore_default_value(old_literal)
     finally:

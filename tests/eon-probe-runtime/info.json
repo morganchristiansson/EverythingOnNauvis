@@ -1,0 +1,18 @@
+{
+  "name": "eon-probe-runtime",
+  "version": "0.0.1",
+  "title": "EoN runtime territory prober (dev only)",
+  "description": "Drives chunk generation and checks that the runtime spot mirror builds one surface.create_territory per volcano cone, with the mirror's exact chunk list.",
+  "author": "morganc",
+  "factorio_version": "2.0",
+  "dependencies": [
+    "base >= 2.0.0",
+    "space-age >= 2.0.0",
+    "EverythingOnNauvis-morganc >= 0.1.0"
+  ],
+  "scenario": {
+    "maps": [
+      "probe"
+    ]
+  }
+}

@@ -56,119 +56,41 @@ data.raw["turret"]["behemoth-worm-turret"].autoplace.probability_expression = "e
 
 data.raw.planet["nauvis"].map_gen_settings.territory_settings = data.raw.planet["vulcanus"].map_gen_settings.territory_settings
 
--- Volcano patches fragment into <10-chunk islands (voronoi cells of 9x9 chunks
--- sliced by ragged coastlines and water pockets), and vanilla's
--- minimum_territory_size = 10 drops those islands entirely -- the "missing top
--- half" demolisher territory: whole volcano flanks were claimed by the engine
--- and then discarded. With the 512px cells and core-only mask the volcano
--- interior lands in one multi-chunk territory, so the floor only needs to catch
--- the leftover 1x1/2x1 cell slivers that strand a demolisher on a single patrol
--- point (tail-chasing). 3 drops those while keeping small volcano cores.
+-- The engine's own minimum_territory_size (10) is a trap for this map: a volcano
+-- that fragments into sub-10-chunk islands is discarded wholesale, which is how
+-- whole flanks ended up unguarded. The runtime mirror claims one closed disc per
+-- cone, so the floor only has to catch leftovers, and 3 does that while keeping
+-- small volcano cores.
 --
--- The floor MUST stay low: raising it turns cell-straddle nibbles and tiny
--- cones into unguarded territory (free access to lava/tungsten/acid geysers).
--- Nibbles that survive as 3-4-chunk territories are the accepted cost of no
--- unguarded gaps (playtested at 200% volcanism: at most one per map, and it
--- keeps its volcanoes guarded).
+-- The floor MUST stay low: raising it turns tiny cones into unguarded territory,
+-- and unguarded lava is free mining.
 data.raw.planet["nauvis"].map_gen_settings.territory_settings.minimum_territory_size = 3
 
--- Demolisher territory follows the volcano-terrain tile mask (eon_vulcanus_terrain),
--- which the engine samples at one fixed world-aligned corner per 32x32 chunk and
--- claims if the expression is >= 0 there. Because the mask is the same signal the
--- volcano tiles place on, territory can't drift off the volcano; the only remaining
--- artifact is the one-chunk corner quantization at the rim (probe-verified, see
--- AGENTS.md). Territories exist only on volcano terrain, so demolishers stay at
--- volcanoes.
--- Smaller voronoi territories than vanilla was wrong for EoN: manhattan-diamond
--- cell borders cut ragged coastal volcanoes into single-chunk slivers (the
--- "medium demolisher patrolling a single chunk" pattern). Radius ~512 (16 chunks)
--- is larger than the typical volcano footprint here, so a volcano lands inside one
--- cell and gets one multi-chunk territory; the biggest volcanoes still span cells
--- and pick up the mixed-size parity below. Both the territory index (vanilla) and
--- the parity mix below reference demolisher_territory_radius by name, so they stay
--- in sync automatically.
-data.raw["noise-expression"]["demolisher_territory_radius"].expression = 512
-
--- Demolisher SIZES and TERRITORY LAYOUT.
+-- VOLCANO TERRITORIES ARE BUILT AT RUNTIME, by the spot mirror in control.lua
+-- (see volcano-territory.lua and features/lua-territory.feature). This file's job is
+-- only to keep the engine's own index out of the way: the mirror names each cone and
+-- hands create_territory the whole closed chunk list once, and
+-- create_territory strips chunks from any other territory, so two systems claiming at
+-- once would fight over every volcano.
 --
--- Territory = ONE voronoi cell per volcano (1100px grid), medium+ volcanoes
--- SPLIT left/right into two territories, small volcanoes kept whole.
---
--- The split cut is anchored by the volcano FIELD GRADIENT, not any world
--- lattice: evaluating the merged volcano field at x+-32px and comparing signs
--- tells which side of THIS volcano's peak the chunk is on. The sign crosses
--- exactly at the deployed peak column (probe-verified: lossless partition of
--- the territory mask, cut within ~1 column of the lava centroid, immune to
--- the spot-deployment jitter that kills lattice-anchored cuts). The gradient
--- also SPLITS MERGED volcanoes: a fused pair in one cell no longer shares one
--- id -- each half gets its own id, so the blob becomes 2 territories instead
--- of 1 (west halves + east halves; islands across member volcanoes stay, judge
--- grouping in the real game). Small volcanoes (eon_volcano_size_dist < 0.55)
--- stay whole so tiny halves never drop under the territory floor (unguarded
--- seams are free mining, not acceptable).
--- Territory id per cell: 1 = whole (small), 2 = west half, 3 = east half.
-data:extend({
-  {
-    -- The territory cell grid (fixed 1100px; voronoi_cell_id needs a constant
-    -- grid). Ids are per-cell floats; abs() keeps them positive.
-    type = "noise-expression",
-    name = "eon_demolisher_cell",
-    expression = "abs(voronoi_cell_id{x = x + 1000 * demolisher_territory_radius, y = y + 1000 * demolisher_territory_radius, seed0 = map_seed, seed1 = 47, grid_size = 1100, distance_type = 'manhattan', jitter = 1})"
-  },
-  {
-    -- Field gradient at the chunk corner: merged volcano field sampled 32px
-    -- east minus 32px west (inline arithmetic offsets of eon_volcano_spots_at
-    -- -- named-function position args DON'T move, inline x +- offset DOES).
-    -- dir > 0 <=> the field rises toward the east <=> the peak is east of me
-    -- <=> I am on the WEST side of the peak.
-    type = "noise-expression",
-    name = "eon_demolisher_dir",
-    expression = "(max(eon_volcano_spots_at{x_offset = 32, y_offset = 0, seed = 1, spacing_mult = 1, size_mult = 0.75}, eon_volcano_spots_at{x_offset = 32, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25}) - max(eon_volcano_spots_at{x_offset = -32, y_offset = 0, seed = 1, spacing_mult = 1, size_mult = 0.75}, eon_volcano_spots_at{x_offset = -32, y_offset = 0, seed = 2, spacing_mult = 1.8, size_mult = 1.25}))"
-  },
-  {
-    -- Zone: 1 = whole (small volcano, exempt from the split), 2 = west half,
-    -- 3 = east half.
-    type = "noise-expression",
-    name = "eon_demolisher_zone",
-    expression = "if(eon_volcano_size_dist < 0.55, 1, if(eon_demolisher_dir < 0, 3, 2))"
-  },
-  {
-    -- Per-territory size nudge (0 or 1): the variation expression samples it
-    -- once per territory, so the two halves of a split cone roll independently
-    -- and stay within one class of each other (small+medium / medium+big,
-    -- never small+big).
-    type = "noise-expression",
-    name = "eon_demolisher_nudge",
-    expression = "floor(random_penalty_between(0, 1.99999, 479))"
-  },
-})
-
-data.raw["noise-expression"]["demolisher_starting_area"].expression = "if(eon_demolisher_territory, 0, -inf)"
-data.raw["noise-expression"]["demolisher_territory_expression"].expression =
-    "if(eon_demolisher_territory, 1e6 + 1000 * eon_demolisher_cell + eon_demolisher_zone, -inf)"
-
--- Sizes: tier by volcano size (eon_volcano_size_dist -- the same smooth roll
--- that scales the cone): small (<0.55) -> small (class 0), medium (0.55..0.8)
--- -> medium (1), large+ (>=0.8) -> big (2). No distance ramp: a cone's class
--- never depends on map radius. A per-territory nudge (eon_demolisher_nudge,
--- 0 or 1, sampled once per territory) pushes each half one class up, so a
--- split cone gets two demolishers within one class of each other (never
--- small+big on the same volcano). Small-only ground (strong small spot
--- system, no big field) caps the class at medium so small-system cones never
--- host a big demolisher; the <0.55 tier already yields smalls.
-local tier = "if(eon_volcano_size_dist < 0.55, 0, if(eon_volcano_size_dist < 0.8, 1, 2))"
-local class = "min(2, " .. tier .. " + eon_demolisher_nudge)"
-data.raw["noise-expression"]["demolisher_variation_expression"].expression =
-    "if(eon_volcano_small_cap > 1, " .. class .. ", min(" .. class .. ", 1)) + (-99 * no_enemies_mode)"
-
+-- So both of the engine's entry points are switched off unconditionally -- the
+-- territory index and the starting area it is combined with. There is no setting and
+-- no alternative path: the expression index that used to live here (a voronoi cell id
+-- per volcano, split left/right by the field gradient, with a per-territory size
+-- nudge) could not name a volcano at all, which is why it is gone rather than kept
+-- behind a switch. The record of what it did and why it was not enough is in
+-- features/demolisher-territory.feature.
+data.raw["noise-expression"]["demolisher_territory_expression"].expression = "-inf"
+data.raw["noise-expression"]["demolisher_starting_area"].expression = "-inf"
 
 --------------------------------------------------------------------------------
--- MARK: Add Gleba enemies aka strafer, stompers and wriggler pentapods
+-- MARK: Noise expressions our changes did NOT make dead
 --------------------------------------------------------------------------------
-
-data.raw.planet["nauvis"].map_gen_settings.autoplace_controls["gleba_enemy_base"] = {}
-
--- Normal spawning (wrap the vanilla spawner expressions by variable: mask
--- only, no re-typed copy text).
-data.raw["noise-expression"]["gleba_spawner"].expression = "eon_mask_gleba_territory(" .. data.raw["noise-expression"]["gleba_spawner"].expression .. ")"
-data.raw["noise-expression"]["gleba_spawner_small"].expression = "eon_mask_gleba_territory(" .. data.raw["noise-expression"]["gleba_spawner_small"].expression .. ")"
+--
+-- Recorded because the opposite looks true and is not: EoN wraps the vanilla
+-- resource probability expressions rather than replacing them
+-- ("eon_mask_off_aquilo_territory(eon_mask_off_ammonia_ocean(" .. current .. "))"
+-- in map-generation/resources-updates.lua), so every `default-<ore>-patches`
+-- expression is still live, inside the resource autoplaces. Deleting them is a
+-- load-time error ("Unknown variable: default-coal-patches"), which is the only
+-- reason this note exists.

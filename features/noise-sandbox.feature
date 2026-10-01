@@ -1,7 +1,9 @@
 # Feature: noise-sandbox — statistical noise-expression simulator
 
-Status: proposed — design request; pick up in a dedicated session.
-Owner: `tools/noise-sandbox/` (new). Language: Ruby (preferred).
+Status: archived reference — active numerical engine is the pinned
+FactorioMapWebUI Rust fork, driven by Python; multi-seed placement calibration
+remains.
+Owner: `tools/noise-sandbox/` (archived Ruby research implementation).
 
 ## Why
 
@@ -56,16 +58,34 @@ graphs directly: every metric is one evaluation sweep, seconds per grid.
 
 ## Acceptance criteria
 
-- [ ] AC-1 **Parser:** resolves the full expression graph from a live
-      `data-raw-dump.json` (all 336 `eon_*` + transitive refs incl.
-      vulcanus/fulgora fields) without hand transcription.
-- [ ] AC-2 **Primitives:** value-noise + voronoi + helpers evaluate with sane
-      statistical output (mean/variance/correlation sanity checks per primitive).
+- [x] AC-1 **Parser:** resolves the full expression graph from a live
+      `data-raw-dump.json` (the committed dump currently contains 849 expressions
+      and 77 functions; all 926 top-level/local ASTs parse without hand
+      transcription). CLI: `ruby -Ilib bin/noise-sandbox --graph`.
+- [x] AC-1a **Language semantics:** parser/evaluator cover Factorio operator
+      precedence, booleans-as-numbers, constants, local expressions/functions,
+      function scopes, and the named-reference non-propagation rule. Specs:
+      `cd tools/noise-sandbox && ruby -Ilib -S rake test`.
+- [x] AC-2 **Primitives:** value-noise, multioctave variants, voronoi,
+      spot/cone, and helper families evaluate with deterministic statistical
+      output. Hashes remain calibration stand-ins, not engine-identical.
+- [x] AC-2a **Territory lab/report:** candidate index expressions can be swept
+      over chunk-corner samples and report connected components, index
+      collisions, component-size quantiles, disconnected same-index islands,
+      and a clearly-labelled minimum-size proxy. This is a geometry diagnostic,
+      not a replacement for engine grouping or probes.
 - [ ] AC-3 **Calibration harness:** predicted placements (threshold crossings)
       vs probe-measured placements across ≥ 3 seeds; pinned tolerances. Baseline
       datum: scrap at seed 12345 radius 1600 — 17,795 entities @ freq 1 (1.23%
       land coverage), 49,980 @ freq 6 (3.46%); 0 scrap on top of ores; 0 deep-
       south-gleba/aquilo/water.
+- [x] AC-3a **Territory fixture comparison:** after incorporating the recovered
+      FactorioMapWebUI noise behavior, the seed-12345 fixture matches exactly:
+      13,085 chunks, 485 expected claims, 485 predicted claims, TP=485, FP=0,
+      FN=0, TN=12,600; accuracy/balanced accuracy/sensitivity/specificity all
+      100%. This validates the numerical model for this one seed, not the
+      engine's territory grouping. Any SVG heatmap is a runtime diagnostic and
+      is intentionally not committed.
 - [ ] AC-4 **Sweeps:** produces coverage-vs-`control:` curves (e.g. scrap
       frequency 1→6) that track the probe numbers within tolerance.
 - [ ] AC-5 **Gate unchanged:** sandbox output never gates a release; the repo

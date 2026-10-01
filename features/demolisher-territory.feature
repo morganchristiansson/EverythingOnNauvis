@@ -1,6 +1,11 @@
-# Feature: Demolisher territory layout on volcanoes
+# Feature: Demolisher territory layout on volcanoes (EXPRESSION PATH — superseded)
 
-Status: shipped (0.1.10) Owner: `map-generation/enemies.lua`, `map-generation/terrain.lua`
+Status: superseded by `features/lua-territory.feature`. The expression index and its
+`eon-volcano-territory = "expression"` setting are deleted; this file is kept as the
+record of what that path did, its acceptance criteria, and the findings that made it
+insufficient, so nobody re-attempts it.
+
+Status when it shipped: shipped (0.1.10) Owner: `map-generation/enemies.lua`, `map-generation/terrain.lua`
 Config: the merged nauvis map; playtested at `vulcanus_volcanism` 200%/600% freq, size 1.
 
 ## Why
@@ -52,6 +57,11 @@ Measured (2026): 200% volcanism, seed 620294650 → 79 territories, unguarded
 lava 1, leaks 0, cramped <4ch 4. 600% volcanism, seed 12345 → 145 territories,
 unguarded lava 4, leaks 0, cramped 3. Both PASS the quota.
 
+A `minimum_territory_size = 4` experiment removed cramped territories on both
+probes, but increased unguarded lava from 1→4 and 4→5 respectively. It is
+rejected: filtering a small territory can remove its resource-bearing chunks
+from coverage.
+
 (Mechanism evidence for the gradient cut — lossless east/west partition, cut
 within ~1 column of the lava centroid — was gathered with session probes that
 are not shipped; the numbers above reproduce the layout through the E2E.)
@@ -92,9 +102,10 @@ are not shipped; the numbers above reproduce the layout through the E2E.)
   LuaTerritory after mapgen): would need to run against a playable surface
   (not `--dump-data`), touch save-state, and fight the engine's own territory
   bookkeeping; the probe shows exceptions are already rare without it.
-- **Higher `minimum_territory_size`** (3 → 5): turns nibbles and tiny cones
-  into unguarded gaps — free mining of lava/tungsten/acid geysers. Explicitly
-  rejected by playtest ("they will mock me").
+- **Higher `minimum_territory_size`** (3 → 4 or 5): turns nibbles and tiny
+  cones into unguarded gaps — free mining of lava/tungsten/acid geysers. The
+  4-chunk experiment removed cramped territories but raised unguarded lava on
+  both current probes, so it is explicitly rejected.
 - **Named noise-function position args** to sample "the field at the volcano
   center": the engine ignores x/y args on named functions (probe-verified);
   only inline arithmetic offsets (`x ± 32`) move the evaluation.

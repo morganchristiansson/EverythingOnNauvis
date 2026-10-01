@@ -41,3 +41,7 @@ What the player gets and why it matters (2-4 sentences, no internals).
   time; a one-line "impossible because ..." prevents rediscovery.
 - Update the spec when the design changes (and when a playtest changes the
   acceptance — playtests are the source of truth for "good enough").
+- **The working agreements are in AGENTS.md, "How we work"** — no behaviour-changing
+  fallbacks, no swallowed errors, no `error()` on per-chunk paths, one Lua dialect,
+  measure-don't-assume, and the two loops (hermetic gate vs live rcon) kept
+  deliberately different. A feature file says *what*; that section says *how*.

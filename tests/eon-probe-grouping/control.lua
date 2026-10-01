@@ -17,36 +17,90 @@ end
 
 script.on_init(function()
   local surface = game.surfaces["nauvis"]
-  surface.request_to_generate_chunks({ TX, TY }, R)
+  -- Generate a generous margin outside the measured disc. get_chunks() may
+  -- include territory members that are not yet generated; four extra rings
+  -- keeps the finite volcano territory objects and their cardinal connections
+  -- available while the report itself remains exactly radius R.
+  surface.request_to_generate_chunks({ TX, TY }, R + 4)
   surface.force_generate_chunk_requests()
 
-  local terr_id = {}     -- first-chunk key -> territory id
-  local terr_size = {}   -- id -> chunk count
+  -- LuaTerritory:get_chunks() can include members outside the generated area.
+  -- Pull those members into the generated set before measuring the territory.
+  -- Headless generation is allowed to make later requests during on_init; the
+  -- bounded loop also makes a refused request visible in the final report.
+  local generation_passes = 0
+  local requested_members = 0
+  for pass = 1, 4 do
+    local requested = 0
+    for cx = -R, R do
+      for cy = -R, R do
+        if cx * cx + cy * cy <= (R + 0.5) * (R + 0.5) then
+          local chunk_position = { CCX + cx, CCY + cy }
+          if surface.is_chunk_generated(chunk_position) then
+            local t = surface.get_territory_for_chunk(chunk_position)
+            if t and t.valid then
+              for _, c in ipairs(t.get_chunks()) do
+                if not surface.is_chunk_generated(c) then
+                  surface.request_to_generate_chunks({ c.x * 32, c.y * 32 }, 0)
+                  requested = requested + 1
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+    requested_members = requested_members + requested
+    generation_passes = pass
+    if requested == 0 then break end
+    surface.force_generate_chunk_requests()
+  end
+
+  local terr_id = {}     -- first-generated-chunk key -> territory id
+  local terr_size = {}   -- id -> generated chunk count
   local terr_units = {}  -- id -> {unit names}
   local next = 0
   local chunks = {}
+  local ungenerated_scanned = 0
+  local ungenerated_members = 0
+
+  local function generated_members(territory)
+    local out = {}
+    for _, c in ipairs(territory.get_chunks()) do
+      if surface.is_chunk_generated(c) then
+        out[#out + 1] = c
+      else
+        ungenerated_members = ungenerated_members + 1
+      end
+    end
+    return out
+  end
   for cx = -R, R do
     for cy = -R, R do
       if cx * cx + cy * cy <= (R + 0.5) * (R + 0.5) then
         local wx = (CCX + cx) * 32
         local wy = (CCY + cy) * 32
-        local t = surface.get_territory_for_chunk({ CCX + cx, CCY + cy })
+        local generated = surface.is_chunk_generated({ CCX + cx, CCY + cy })
+        if not generated then ungenerated_scanned = ungenerated_scanned + 1 end
+        local t = generated and surface.get_territory_for_chunk({ CCX + cx, CCY + cy }) or nil
         local tid = 0
         if t and t.valid then
-          local cs = t.get_chunks()
+          local cs = generated_members(t)
           local c0 = cs[1]
-          local k = c0.x .. "," .. c0.y
-          tid = terr_id[k]
-          if not tid then
-            next = next + 1
-            tid = next
-            terr_id[k] = tid
-            terr_size[tid] = #cs
-            local us = {}
-            for _, u in pairs(t.get_segmented_units()) do
-              us[#us + 1] = u.prototype and u.prototype.name or u.type
+          if c0 then
+            local k = c0.x .. "," .. c0.y
+            tid = terr_id[k]
+            if not tid then
+              next = next + 1
+              tid = next
+              terr_id[k] = tid
+              terr_size[tid] = #cs
+              local us = {}
+              for _, u in pairs(t.get_segmented_units()) do
+                us[#us + 1] = u.prototype and u.prototype.name or u.type
+              end
+              terr_units[tid] = us
             end
-            terr_units[tid] = us
           end
         end
         local rows = {}
@@ -78,6 +132,10 @@ script.on_init(function()
     radius_chunks = R,
     territory_count = next,
     chunk_count = #chunks,
+    generation_passes = generation_passes,
+    generation_members_requested = requested_members,
+    ungenerated_scanned_chunks = ungenerated_scanned,
+    ungenerated_territory_members_skipped = ungenerated_members,
     chunks = chunks,
     territories = territories,
     demolishers = (function()

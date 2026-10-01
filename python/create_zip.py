@@ -20,12 +20,14 @@ SKIP_IMAGE_FLAG = r"#SKIP IMAGE#"
 
 
 PATHS_TO_SKIP = [".git",
+                 ".pi",
                  ".pytest_cache",
                  ".vscode",
                  "AGENTS.md",
                  "tests",
                  "python",
                  "screenshots",
+                 "tools",
                  ".editorconfig",
                  ".gitignore",
                  "versions",

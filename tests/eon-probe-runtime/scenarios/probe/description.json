@@ -1,0 +1,5 @@
+{
+  "name": "eon-probe-runtime",
+  "description": "The runtime territory probe, as a SCENARIO rather than a mod with a control.lua. A scenario's control.lua is the top-level script, so the work runs once -- a mod carrying a scenario ALSO runs its own mod-level control.lua, which would do the whole probe twice and overwrite its own report.",
+  "order": "a"
+}

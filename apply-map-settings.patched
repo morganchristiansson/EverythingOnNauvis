@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+#
+# Emit Factorio console commands that apply the values in
+# factorio/data/*.json to the running save.
+#
+# Usage:
+#   tools/apply-map-settings                # print apply commands (compact)
+#   tools/apply-map-settings --diff         # print Lua that logs differences instead
+#   tools/apply-map-settings --diff --output game.print
+#
+# Notes:
+# * Map/difficulty settings persist inside the save once applied.
+# * Map GEN settings only affect chunks generated afterwards -- existing terrain is unchanged.
+# * territory_settings (planet/territory block) are applied to the nauvis surface
+#   from map-gen-settings.json like the other gen settings.
+# * Both modes output ONLY Factorio Lua/commands to stdout (safe to pipe to RCON).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+usage() {
+    sed -n '2,30p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
+}
+
+DIFF=0
+PRINT_FUNC="print"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --diff) DIFF=1; shift ;;
+        --output) PRINT_FUNC="$2"; shift 2 ;;
+        --print) PRINT_FUNC="print"; shift ;;
+        --game-print) PRINT_FUNC="game.print"; shift ;;
+        --player-print) PRINT_FUNC="game.player.print"; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "error: unknown option: $1 (try --help)" >&2; exit 2 ;;
+    esac
+done
+
+to_lua_jq='
+def to_lua:
+  if type == "string" then @json
+  elif type == "null" then "nil"
+  elif type == "boolean" then (if . then "true" else "false" end)
+  elif type == "number" then tostring
+  elif type == "array" then "{" + (map(to_lua) | join(", ")) + "}"
+  elif type == "object" then "{" + ([to_entries[] | (if .key | test("^[a-zA-Z_][a-zA-Z0-9_]*$") then "\(.key) = \(.value | to_lua)" else "[\"\(.key)\"] = \(.value | to_lua)" end)] | join(", ")) + "}"
+  else tojson end;
+def walk(f): def _walk: if type=="object" then with_entries(.value |= _walk) | f elif type=="array" then map(_walk) | f else f end; _walk;
+def clean: walk(if type=="object" then with_entries(select(.key | startswith("_") | not)) else . end);
+'
+
+if (( DIFF )); then
+    # ── map-settings diff (compact table + recursive check) ───────────────
+    # difficulty_settings lives on game.difficulty_settings (writable), not game.map_settings
+    if [[ "$PRINT_FUNC" == "game.player.print" ]]; then
+        PRINT_INIT='local _print = (game.player and game.player.print) or game.print or print'
+    elif [[ "$PRINT_FUNC" == "game.print" ]]; then
+        PRINT_INIT='local _print = game.print'
+    elif [[ "$PRINT_FUNC" == "print" ]]; then
+        PRINT_INIT='local _print = print'
+    else
+        PRINT_INIT="local _print = $PRINT_FUNC"
+    fi
+    # One command per file: map-settings.json covers game.map_settings +
+    # game.difficulty_settings (split only because the runtime splits them).
+    DESIRED_MAP=$(jq -rn --slurpfile m factorio/data/map-settings.json "$to_lua_jq"'
+      ($m[0] | clean | del(.difficulty_settings) | to_lua) as $map
+      | (($m[0].difficulty_settings // {}) | clean | to_lua) as $diff
+      | "local desired_map=" + $map + "; local desired_diff=" + $diff + "; '"$PRINT_INIT"'; local function diff(cur, des, pre) for k,v in pairs(des) do local path=pre.. \".\" ..k; local ok,cv=pcall(function() return cur and cur[k] end); if not ok then _print(path .. \" (unknown, skip) -> \" .. tostring(v)) elseif type(v)==\"table\" then if cv==nil then _print(path .. \": nil -> \" .. tostring(v)) else diff(cv,v,path) end elseif cv~=v then _print(path .. \": \" .. tostring(cv) .. \" -> \" .. tostring(v)) end end end; diff(game.map_settings, desired_map, \"map_settings\"); for k,v in pairs(desired_diff) do local path=\"difficulty_settings.\"..k; local ok,cv=pcall(function() return game.difficulty_settings[k] end); if not ok then _print(path .. \" (unknown, skip) -> \" .. tostring(v)) elseif cv~=v then _print(path .. \": \" .. tostring(cv) .. \" -> \" .. tostring(v)) end end"
+    ')
+    echo "/silent-command do $DESIRED_MAP end"
+
+    # ── map-gen diff (consistent [] notation, per-field) ──────────────────
+    DESIRED_GEN=$(jq -rn --slurpfile m factorio/data/map-gen-settings.json "$to_lua_jq"'
+      ($m[0].autoplace_controls | to_lua) as $ctrl
+      | (($m[0].property_expression_names // {}) | to_lua) as $props
+      | "local desired_ctrl=" + $ctrl + "; local desired_props=" + $props + "; local m=game.surfaces[\"nauvis\"].map_gen_settings; '"$PRINT_INIT"'; for ctrl, vals in pairs(desired_ctrl) do local cur=m.autoplace_controls[ctrl]; if not cur then for k,v in pairs(vals) do _print(\"map_gen_settings.autoplace_controls[\\\"\"..ctrl..\"\\\"][\\\"\"..k..\"\\\"]: nil -> \"..tostring(v)) end else for k,v in pairs(vals) do if cur[k]~=v then _print(\"map_gen_settings.autoplace_controls[\\\"\"..ctrl..\"\\\"][\\\"\"..k..\"\\\"]: \"..tostring(cur[k])..\" -> \"..tostring(v)) end end end end; local live_props=m.property_expression_names or {}; for pname,pval in pairs(desired_props) do if live_props[pname]~=pval then _print(\"map_gen_settings.property_expression_names[\\\"\"..pname..\"\\\"]: \"..tostring(live_props[pname])..\" -> \"..tostring(pval)) end end"
+    ')
+    echo "/silent-command do $DESIRED_GEN end"
+
+    # ── territory settings diff (nauvis) ──────────────────────────────────
+    DESIRED_TERR=$(jq -rn --slurpfile m factorio/data/map-gen-settings.json "$to_lua_jq"'
+      (($m[0].territory_settings // {}) | clean | to_lua) as $terr
+      | "local desired_terr=" + $terr + "; local m=game.surfaces[\"nauvis\"].map_gen_settings; '"$PRINT_INIT"'; local cur=m.territory_settings; for k,v in pairs(desired_terr) do local cv=cur and cur[k] or nil; if cur==nil then _print(\"map_gen_settings.territory_settings[\\\"\"..k..\"\\\"]: nil -> \"..tostring(v)) elseif type(v)==\"table\" then if type(cv)==\"table\" then if v[1] and #v ~= #cv then _print(\"map_gen_settings.territory_settings[\\\"\"..k..\"\\\"]: len \"..#cv..\" -> \"..#v) end elseif cv==nil then _print(\"map_gen_settings.territory_settings[\\\"\"..k..\"\\\"]: nil -> \"..tostring(v)) end elseif cv~=v then _print(\"map_gen_settings.territory_settings[\\\"\"..k..\"\\\"]: \"..tostring(cv)..\" -> \"..tostring(v)) end end"
+    ')
+    echo "/silent-command do $DESIRED_TERR end"
+    exit 0
+fi
+
+# ── normal mode: compact apply via tables ─────────────────────────────────
+
+# One command per file: map-settings.json covers game.map_settings +
+# game.difficulty_settings (split only because the runtime splits them).
+DESIRED_MAP=$(jq -rn --slurpfile m factorio/data/map-settings.json "$to_lua_jq"'
+  ($m[0] | clean | del(.difficulty_settings) | to_lua) as $map
+  | (($m[0].difficulty_settings // {}) | clean | to_lua) as $diff
+  | "local desired_map=" + $map + "; local desired_diff=" + $diff + "; local function apply(dst, src) for k,v in pairs(src) do local ok,cur=pcall(function() return dst[k] end); if not ok then else if type(v)==\"table\" and cur~=nil then apply(cur, v) else local ok2,err=pcall(function() dst[k]=v end) end end end end; apply(game.map_settings, desired_map); for k,v in pairs(desired_diff) do pcall(function() game.difficulty_settings[k]=v end) end"
+')
+echo "/silent-command do $DESIRED_MAP end"
+
+DESIRED_GEN=$(jq -rn --slurpfile m factorio/data/map-gen-settings.json "$to_lua_jq"'
+  ($m[0].autoplace_controls | to_lua) as $ctrl
+  | (($m[0].property_expression_names // {}) | to_lua) as $props
+  | "local desired_ctrl=" + $ctrl + "; local desired_props=" + $props + "; local m=game.surfaces[\"nauvis\"].map_gen_settings; for ctrl, vals in pairs(desired_ctrl) do m.autoplace_controls[ctrl]=m.autoplace_controls[ctrl] or {}; for k,v in pairs(vals) do m.autoplace_controls[ctrl][k]=v end end; m.property_expression_names=m.property_expression_names or {}; for pname,pval in pairs(desired_props) do m.property_expression_names[pname]=pval end; game.surfaces[\"nauvis\"].map_gen_settings=m"
+')
+echo "/silent-command do $DESIRED_GEN end"
+
+# ── territory settings apply (nauvis) ────────────────────────────────────
+DESIRED_TERR=$(jq -rn --slurpfile m factorio/data/map-gen-settings.json "$to_lua_jq"'
+  (($m[0].territory_settings // {}) | clean | to_lua) as $terr
+  | "local desired_terr=" + $terr + "; local m=game.surfaces[\"nauvis\"].map_gen_settings; local cur=m.territory_settings or {}; for k,v in pairs(desired_terr) do cur[k]=v end; m.territory_settings=cur; game.surfaces[\"nauvis\"].map_gen_settings=m"
+')
+echo "/silent-command do $DESIRED_TERR end"

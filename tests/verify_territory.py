@@ -6,7 +6,6 @@ volcano tiles around the volcano near (-80, -831) on seed 12345).
 Usage: python3 tests/verify_territory.py [map-gen-settings.json]
 """
 import json
-import math
 import os
 import shutil
 import subprocess

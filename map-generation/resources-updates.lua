@@ -265,7 +265,6 @@ data.raw["noise-expression"]["vulcanus_starting_tungsten"].expression = "-inf"
 -- Tungsten grows on inner volcano flanks, guarded by demolishers (vanilla
 -- Vulcanus behavior): spots favor mineable ground inside volcano coverage
 -- (folds ring, minus lava core and water -- not the outer folds-flat, so
--- patches stay inside demolisher territory). Ore never places on lava tiles
 -- anyway, so no lava exclusion is needed. Patches are smaller and more
 -- numerous than vanilla (half size, more candidates) so they fit the flanks.
 -- Spot blobs centered near edges can spill onto neighboring tiles (flat skirt
@@ -273,6 +272,14 @@ data.raw["noise-expression"]["vulcanus_starting_tungsten"].expression = "-inf"
 -- tiles themselves, so no tungsten ever renders outside volcano ground (and
 -- outside demolisher territory). There is no fallback: volcanism cannot be
 -- disabled, so every map has volcanoes and therefore tungsten.
+-- The render gate (below) is the volcano CORE, eon_vulcano_coverage: the folds and
+-- the lava ring, unshifted. It used to be eon_vulcanus_core_at16, a 16px-shifted
+-- copy that existed only to cancel the half-chunk bias of the territory index's
+-- corner sampling. That sampling is gone -- the runtime territories claim chunks
+-- by cone geometry and never read a tile (noise-mirror/volcano-cones.lua) -- so the
+-- shifted copy has no reason to exist. The residual this accepts is the known one:
+-- ore renders per tile while membership is per chunk, so a few tiles on a rim can
+-- fall outside (AGENTS.md, tungsten section).
 data:extend({
   {
     type = "noise-expression",
@@ -359,9 +366,7 @@ data:extend({
   {
     -- Sulfur acid gate: geysers AND their puddles/stains live only on the
     -- inner volcano core -- the same signals demolisher territory is built
-    -- from (folds + lava ring, eon_vulcano_coverage, the per-tile UNSHIFTED
-    -- form; the _at16 variant only exists to compensate the territory
-    -- expression's chunk-corner sampling, it is not a tile-truth gate) -- and
+    -- from (folds + lava ring, eon_vulcano_coverage, unshifted) -- and
     -- only on volcanoes the per-volcano hash gate picked.
     type = "noise-function",
     name = "eon_mask_sulfur_acid",
@@ -380,5 +385,5 @@ data:extend({
 -- the old formula, far volcanoes pay out more per tile; richness stays
 -- region-wide since probability gates.
 data.raw.resource["tungsten-ore"].autoplace.richness_expression = "eon_tungsten_ore_region * random_penalty_between(0.9, 1, 1) * 3500 * control:tungsten_ore:richness * (1 + min(distance / (1500 * eon_volcanism), 1)) / vulcanus_tungsten_ore_size"
-data.raw.resource["tungsten-ore"].autoplace.probability_expression = "eon_mask_off_aquilo_territory(eon_mask_resource_territory(eon_mask_off_ammonia_ocean(if((eon_vulcanus_core_at16 > 0) * (eon_volcano_lava_core <= 0), (control:tungsten_ore:size > 0) * (1000 * ((0.7 + eon_tungsten_ore_region) * random_penalty_between(0.9, 1, 1) - 1)), -inf))))"
+data.raw.resource["tungsten-ore"].autoplace.probability_expression = "eon_mask_off_aquilo_territory(eon_mask_resource_territory(eon_mask_off_ammonia_ocean(if((eon_vulcano_coverage > 0) * (eon_volcano_lava_core <= 0), (control:tungsten_ore:size > 0) * (1000 * ((0.7 + eon_tungsten_ore_region) * random_penalty_between(0.9, 1, 1) - 1)), -inf))))"
 -- END: Fix Resource spawning

@@ -1,0 +1,15 @@
+{
+  "vanilla": {
+    "Cliff": 287,
+    "Entity": 12440,
+    "Tile": 10068
+  },
+  "vanilla_total": 22795,
+  "with_mod": {
+    "Cliff": 1566,
+    "Entity": 47405,
+    "Territory": 47,
+    "Tile": 30612
+  },
+  "with_mod_total": 79630
+}

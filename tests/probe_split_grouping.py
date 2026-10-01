@@ -172,6 +172,7 @@ def summarize(d, seed, settings):
 
     # ---- split layout report ----
     stats = {"1terr": 0, "2terr": 0, "3+terr": 0, "island": 0}
+    over_two = []
     for members in clusters.values():
         per_terr = {}
         for k in members:
@@ -184,9 +185,20 @@ def summarize(d, seed, settings):
             stats["2terr"] += 1
         else:
             stats["3+terr"] += 1
+            xs = [x for x, _ in members]
+            ys = [y for _, y in members]
+            over_two.append({
+                "territories": len(ts),
+                "volcano_chunks": len(members),
+                "bbox": [min(xs), max(xs), min(ys), max(ys)],
+                "territory_sizes": [len(v) for _, v in ts],
+            })
         if islands > len(ts):
             stats["island"] += 1
     print(f"volcano clusters by territories: {stats} (islands = territories with >1 island)")
+    print(f"volcano components with >2 territories: {len(over_two)}")
+    for item in sorted(over_two, key=lambda v: (-v["territories"], -v["volcano_chunks"]))[:20]:
+        print("  >2terr", item)
     from collections import Counter
     hist = Counter("lt4" if t["size"] < 4 else "4-7" if t["size"] < 15
                    else "15-40" if t["size"] < 60 else "60+" for t in d["territories"])
