@@ -166,6 +166,8 @@ def main():
             server.kill()
     pump.join(timeout=10)
     server_output = "".join(captured)
+    if os.environ.get("EON_DUMP_STREAM"):
+        open(os.environ["EON_DUMP_STREAM"], "w").write(server_output)
 
     # A line from the mod proves its control stage executed.
     # The old "load it a second time" check is gone with --create, and honestly so:
@@ -304,6 +306,12 @@ def main():
                 "a territory with no units does not exist on the map")
     if not report.get("segmented_units"):
         failures.append("no segmented unit (no demolisher) exists in any territory")
+    # The census must run exactly once. It once ran once per cone -- silently, with
+    # identical output every pass, because a missing `end` and a stray one cancelled
+    # each other out of the parse.
+    if report.get("census_passes") != 1:
+        failures.append(f"the census ran {report['census_passes']} times in one probe; "
+                        "the surface below is measured once")
     if report.get("territories_with_small_and_big"):
         failures.append(f"{len(report['territories_with_small_and_big'])} volcanoes host "
                         "both a small and a big demolisher -- the size mix must stay "

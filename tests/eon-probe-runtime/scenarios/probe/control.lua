@@ -142,6 +142,16 @@ end
 
 -- Armed by on_init, consumed by the first tick -- see the note in there.
 local pending_measurement = false
+-- Phase marks. `os` is nil in Factorio's mod sandbox, so the probe cannot time
+-- itself; these go to stdout and the engine timestamps them, which is enough.
+local function mark(what) line("MARK %s tick=%d", what, game.tick) end
+-- How many times the census below has run. It must be 1: it used to run once per cone
+-- (13 on a 100% map, 3.6 s inside one tick) because a missing `end` put it inside the
+-- disabled RUN_FIT loop, and the stray `end` that cancelled the missing one is why luac
+-- accepted the file. The output was identical every pass and the harness kills on the
+-- first sentinel, so nothing failed -- it was just slow. The harness now fails on
+-- anything but 1.
+local census_passes = 0
 -- Assigned by on_init, called by the first tick. It has to be declared out here
 -- rather than as a local inside on_init, because the two are in different scopes
 -- and `local` in one is invisible to the other.
@@ -149,6 +159,7 @@ local measurement
 
 script.on_init(function()
   local surface = game.surfaces["nauvis"]
+  mark("on_init entered")
 
   -- 1. Generate the disc. control.lua's own on_chunk_generated handler runs for
   --    every chunk and creates the territories; the probe only observes.
@@ -198,6 +209,7 @@ script.on_init(function()
   end
   local previous = -1
   for _ = 1, 20 do
+    mark("generation pass")
     for _, request in ipairs(claimable_requests()) do
       surface.request_to_generate_chunks(request[1], request[2])
     end
@@ -222,7 +234,9 @@ script.on_init(function()
   -- A tick is somewhere to stand only because the harness passes a
   -- server-settings.json with auto_pause false. An empty server otherwise PAUSES
   -- and stops at updateTick(0), so on_nth_tick never fires at all.
+  mark("on_init generation done")
   measurement = function()
+    mark("measurement start")
 
 
   -- The mirror's cones and their chunk sets, plus the distance histogram that
@@ -511,6 +525,7 @@ script.on_init(function()
   local second_snapshot = snapshot_territories(surface)
   local unchanged, changed_key = same_snapshot(first_snapshot, second_snapshot)
 
+  mark("stage 2 done")
   -- 3. The "created early" case: a cone OUTSIDE the generated area whose
   --    footprint reaches past it. Generate only its centre chunk plus one
   --    footprint chunk, let the mod create the territory with the rest still
@@ -833,8 +848,13 @@ script.on_init(function()
   -- expression changes. It was the most expensive thing here by a wide margin
   -- (the 600% e2e took 220 s, and this was most of it). Flip this to true to
   -- re-run the fit after touching the boundary constants.
+  -- The two per-cone accumulators, at the measurement level and not inside the
+  -- RUN_FIT loop: the report at the end reads both, and when they lived in the loop
+  -- the report could only reach them by being INSIDE the loop too. That is how the
+  -- census ended up running once per cone.
   local RUN_FIT = false
   local fit = { samples = 0, min = math.huge, max = -math.huge, sum = 0, worst = 0 }
+  local line_err = { samples = 0, worst = 0, sum = 0, exact = 0, hist = {}, nearby = {}, pairs = {} }
   local function fraction_for(cone, ux, uy, target)
     -- The boundary of a fraction-disc grows with the fraction, so a bisection on F
     -- is sound here even though the boundary is not monotonic in RADIUS: the
@@ -894,7 +914,6 @@ script.on_init(function()
   -- prediction is right, the two agree direction by direction -- and if they do not, the
   -- residual is a per-direction number in tiles, which is a thing to fix, rather than a
   -- percentage of patrol_path points, which is not.
-  local line_err = { samples = 0, worst = 0, sum = 0, exact = 0, hist = {}, nearby = {}, pairs = {} }
   for _, entry in ipairs(entries) do
     local cone = entry.cone
     for index = 0, 15 do
@@ -980,6 +999,12 @@ script.on_init(function()
       end
     end
   end
+  end -- the RUN_FIT loop: everything below measures the SURFACE once, so it is
+  -- outside the loop. It was not, and nothing caught it -- see the stray `end`
+  -- below, which cancels this one out and hides it from luac.
+
+  mark("stages 1-3 done")
+  census_passes = census_passes + 1
 
   -- Every volcano territory must STAND ON a volcano. This is the claim test itself
   -- ("at least half of the cone's revealed ground is volcano", Builder:
@@ -1200,7 +1225,9 @@ script.on_init(function()
     end
   end
 
+  mark("census done")
   helpers.write_file("eon-probe-runtime/report.json", helpers.table_to_json({
+    census_passes = census_passes,
     seed = surface.map_gen_settings.seed,
     volcanism_size = (surface.map_gen_settings.autoplace_controls["vulcanus_volcanism"] or {}).size,
     volcanism_frequency = (surface.map_gen_settings.autoplace_controls["vulcanus_volcanism"] or {}).frequency,
@@ -1293,7 +1320,6 @@ script.on_init(function()
     .. "missing %d, extra %d, on-volcano %d off-volcano %d",
     #entries, table_size(first_snapshot), tostring(unchanged), matched, mismatched,
     missing_chunks, extra, on_volcano, off_volcano)
-  end
   -- Run it now, at the end of on_init, as it always was.
   --
   -- Deferring this to on_nth_tick(1) is the obvious way to let every on_init finish
@@ -1321,8 +1347,10 @@ local ticks_seen = 0
 script.on_nth_tick(1, function()
   if not pending_measurement or not measurement then return end
   ticks_seen = ticks_seen + 1
+  mark("tick " .. ticks_seen)
   if ticks_seen < MEASURE_AFTER_TICKS then return end
   pending_measurement = false
+  mark("tick gate passed")
   measurement()
 end)
 
