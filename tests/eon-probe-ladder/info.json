@@ -1,0 +1,12 @@
+{
+    "name": "eon-probe-ladder",
+    "version": "0.0.1",
+    "title": "EoN demolisher-ladder prober (dev only)",
+    "description": "Reports what volcano-demolisher.lua's discover() sees: every segmented-unit prototype in engine order, its body length, and the tier boundaries. Use it to check a mod that adds a demolisher (behemoth-enemies).",
+    "author": "morganc",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0.0",
+        "space-age >= 2.0.0"
+    ]
+}

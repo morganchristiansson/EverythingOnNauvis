@@ -44,6 +44,10 @@ GAME_PORT = int(os.environ.get("EON_LIVE_GAME_PORT", str(PORT + 1000)))
 PASSWORD = os.environ.get("EON_LIVE_PASSWORD", "eon")
 PID_FILE = RUN / "server.pid"
 MODS = ["base", "elevated-rails", "quality", "space-age", "EverythingOnNauvis-morganc"]
+# Extra mods to load beside the mod above, so a compatibility question about
+# somebody else's mod is one env var away (e.g. EON_LIVE_EXTRA=behemoth-enemies
+# _0.0.8.zip). Each entry is symlinked into the run's mod directory.
+EXTRA = [n for n in os.environ.get("EON_LIVE_EXTRA", "").split(",") if n]
 
 
 def mod_list() -> list[dict]:
@@ -58,6 +62,14 @@ def prepare(settings: str, seed: str) -> None:
     mods.mkdir(parents=True)
     write.mkdir(parents=True)
     os.symlink(ROOT, mods / "EverythingOnNauvis-morganc")
+    for name in EXTRA:
+        name = name.split("_")[0]
+        source = next((p for p in sorted(Path("/factorio/mods").glob(name + "*"))
+                       if not p.is_dir() and p.exists()), None)
+        if source is None:
+            source = ROOT / "tests" / name  # a dev probe mod in this repo
+        os.symlink(source, mods / source.name)  # the .zip name: Factorio only scans those
+        MODS.append(name)
     (mods / "mod-list.json").write_text(json.dumps({"mods": mod_list()}, indent=2))
     (RUN / "config.ini").write_text(
         f"[path]\nread-data=/factorio/data\nwrite-data={write}\n")

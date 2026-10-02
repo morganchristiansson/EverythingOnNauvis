@@ -27,6 +27,7 @@ import sys
 import tempfile
 import time
 import zipfile
+from pathlib import Path
 
 FACTORIO_BIN = os.environ.get("FACTORIO_BIN", "/factorio/bin/x64/factorio")
 MOD_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,6 +55,14 @@ def main():
     os.symlink(MOD_DIR, os.path.join(mods_dir, MOD_NAME))
     shutil.copytree(os.path.join(MOD_DIR, "tests", PROBE_NAME),
                     os.path.join(mods_dir, PROBE_NAME))
+    # EON_PROBE_EXTRA="behemoth-enemies_0.0.8.zip" loads somebody else's mod beside
+    # the mod, which is how a compatibility question (does the demolisher ladder
+    # still come out right when a mod adds a tier?) gets answered end to end.
+    for entry in [n for n in os.environ.get("EON_PROBE_EXTRA", "").split(",") if n]:
+        source = next((p for p in sorted(Path("/factorio/mods").glob(entry.split("_")[0] + "*"))
+                       if not p.is_dir() and p.exists()), None)
+        os.symlink(source or os.path.join(MOD_DIR, "tests", entry),
+                   os.path.join(mods_dir, entry))
     with open(os.path.join(mods_dir, "mod-list.json"), "w") as f:
         json.dump({"mods": [
             {"name": "base", "enabled": True},
@@ -62,7 +71,8 @@ def main():
             {"name": "space-age", "enabled": True},
             {"name": MOD_NAME, "enabled": True},
             {"name": PROBE_NAME, "enabled": True},
-        ]}, f)
+        ] + [{"name": n.split("_")[0], "enabled": True}
+             for n in os.environ.get("EON_PROBE_EXTRA", "").split(",") if n]}, f)
     config = os.path.join(base_dir, "config.ini")
     with open(config, "w") as f:
         f.write(f"[path]\nread-data=/factorio/data\nwrite-data={write_dir}\n")

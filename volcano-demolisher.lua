@@ -65,8 +65,8 @@ local PatrolPath = require("volcano-patrol-path")
 --- moves against a new measurement), so they are the endpoints of the ladder and
 --- a longer ladder INTERPOLATES between them rather than inventing new ones: at
 --- three tiers the boundaries are exactly 0.55 and 0.8, which is what the
---- hardcoded ladder produced, and a fourth tier takes 0.6125, so a modded colossal
---- only gets the biggest claims.
+--- hardcoded ladder produced, and a fourth tier takes 0.675, so a modded colossal
+--- only gets the biggest claims (measured with behemoth-enemies 0.0.8 loaded).
 local TIER_LOW, TIER_HIGH = 0.55, 0.8
 
 local M = {}
@@ -114,7 +114,7 @@ function M.discover()
   -- Boundaries BETWEEN tiers, evenly spaced between the two measured numbers -- so
   -- a longer ladder interpolates rather than inventing thresholds. At three tiers they
   -- are exactly 0.55 and 0.8, which is what the hardcoded ladder produced, and a
-  -- fourth tier takes 0.6125, so a modded colossal only gets the biggest claims. A
+  -- fourth tier takes 0.675, so a modded colossal only gets the biggest claims. A
   -- two-tier ladder has one boundary, and the zero span gives it the low one.
   local count = #LADDER
   local span = count > 2 and (TIER_HIGH - TIER_LOW) / (count - 2) or 0
