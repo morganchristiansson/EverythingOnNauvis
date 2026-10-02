@@ -2,6 +2,12 @@
 Version: 0.1.13
 Date: 2026-09-XX
   Changes:
+    - Fix: quantum-processor could not be crafted on Nauvis. Its surface condition is
+      a max only (pressure <= 600, Aquilo's value; Nauvis is 1000), and the rewrite
+      only relaxed conditions that carry a positive minimum, so the ceiling survived
+      and Nauvis failed it. Max-only conditions are now dropped too; the
+      min = 0 / max = 0 platform-exclusive shape (crusher, thruster, space-science-pack,
+      ...) is untouched, so space platform restrictions stay exactly as they were.
     - Volcano (demolisher) territories are built at RUNTIME from a spot mirror, not
       from a noise-expression index -- and the index is gone, so there is no setting
       to choose. Why: spot_noise returns a cone HEIGHT and never says which of its

@@ -55,6 +55,9 @@ PLATFORM_EXCLUSIVE = [
 PLANET_EXCLUSIVE = [
     ("recipe", "foundry"),
     ("recipe", "electromagnetic-plant"),
+    # vanilla caps pressure at 600 (Aquilo's value, Nauvis is 1000) and sets no
+    # minimum: the max-only shape the rewrite has to notice
+    ("recipe", "quantum-processor"),
     ("recipe", "big-mining-drill"),
     ("recipe", "recycler"),
     # vanilla requires magnetic-field = 99 (Fulgora) here; Nauvis has none,
@@ -158,15 +161,22 @@ def get_condition_sets(data, entries):
 
 
 def is_platform_exclusive_set(conditions):
-    """True if every condition has a minimum of 0 (vanilla platform-exclusive shape)."""
-    return bool(conditions) and all((c.get("min") or 0) == 0 for c in conditions)
+    """True if every condition is the vanilla platform-exclusive shape: min 0, max 0.
+
+    The minimum must be present and 0: a max-only condition (quantum-processor caps
+    pressure at 600, Aquilo's value) has no minimum and was read as platform-exclusive
+    here, which is why its ceiling survived the rewrite and Nauvis could not craft it.
+    """
+    return bool(conditions) and all(
+        c.get("min") == 0 and c.get("max") == 0 for c in conditions
+    )
 
 
 def is_planet_normalized_set(conditions):
-    """True if rewritten correctly: any property, minimum clamped to (0, 1], no maximum."""
+    """True if rewritten correctly: any property, minimum clamped to (0, 1] or absent, no maximum."""
     return bool(conditions) and all(
         "max" not in c
-        and 0 < (c.get("min") or 0) <= 1
+        and (c.get("min") is None or 0 < c["min"] <= 1)
         for c in conditions
     )
 

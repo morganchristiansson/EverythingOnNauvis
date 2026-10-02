@@ -34,6 +34,12 @@ for _, type in pairs(data.raw) do
                         if (condition.min or 0) > 0 then
                             condition.min = math.min(condition.min, SAFE_PLANETARY_REQUIREMENT)
                             condition.max = nil
+                        elseif not condition.min then
+                            -- No minimum at all, only a maximum: a ceiling, i.e. "low pressure or
+                            -- none" (quantum-processor caps pressure at 600, Aquilo's value, while
+                            -- Nauvis is 1000). Keep it off space platforms only if the ceiling is
+                            -- 0 (nothing like that exists), so drop it and let Nauvis in.
+                            condition.max = nil
                         end
                     end
                 end
