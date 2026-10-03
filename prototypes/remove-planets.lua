@@ -23,6 +23,19 @@ if data.raw.planet["vulcanus"] then
   data.raw.planet["vulcanus"].hidden = true
 end
 
+-- Every space-platform request defaults to the planet of its item's
+-- default_import_location, and all of those point at planets that no longer
+-- exist (e.g. railgun-turret defaults to aquilo). Only Nauvis is left.
+for _, types in pairs(data.raw) do
+  if type(types) == "table" then
+    for _, proto in pairs(types) do
+      if type(proto) == "table" and proto.default_import_location then
+        proto.default_import_location = "nauvis"
+      end
+    end
+  end
+end
+
 -- delete space connections
 data_util.delete_prototype("space-connection", "nauvis-vulcanus")
 data_util.delete_prototype("space-connection", "nauvis-gleba")
