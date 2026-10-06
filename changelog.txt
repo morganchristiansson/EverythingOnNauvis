@@ -2,6 +2,14 @@
 Version: 0.1.13
 Date: 2026-09-XX
   Changes:
+    - eon-nauvis2-clone (off): the dummy original nauvis planet is now stripped
+      to a vanilla default map (its map_gen_settings are nilled AFTER the clone
+      deepcopy takes the merged map). The primary surface only exists as a swap
+      staging area, so generating the full merged program there is wasted cost;
+      world creation safely falls back to the engine default map when the
+      settings are absent (probe-verified 2.0.77: --create succeeds, surface 1
+      tile = grass-1, planet still associated). The live cloned surface is
+      unaffected -- the deepcopy already carried the merged settings.
     - New startup setting eon-restore-space-locations (on by default): instead of
       deleting Vulcanus, Fulgora, Gleba and Aquilo, they come back as unlandable
       SPACE LOCATIONS -- the same prototype as the solar system edge and the

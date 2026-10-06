@@ -218,9 +218,12 @@ def test_setting_off(data):
         ac = (nauvis2.get("map_gen_settings") or {}).get("autoplace_controls", {})
         check("nauvis2 carries the merged map (vulcanus_volcanism control)",
               "vulcanus_volcanism" in ac, repr(list(ac)[:3]))
-        check("nauvis2 clones the real map_gen_settings",
-              nauvis2.get("map_gen_settings") ==
-              planets.get("nauvis", {}).get("map_gen_settings"))
+        check("nauvis2 keeps the merged map_gen_settings",
+              nauvis2.get("map_gen_settings") is not None)
+    # The dummy nauvis planet is stripped: the primary surface only stages a swap,
+    # so it is generated as a cheap vanilla default map, not the merged program.
+    check("dummy nauvis has no map_gen_settings (vanilla primary)",
+          planets.get("nauvis", {}).get("map_gen_settings") is None)
     check("solar-system edge points at aquilo (restored trip graph)",
           data.get("space-connection", {}).get("aquilo-solar-system-edge", {}).get("from") == "aquilo")
     # eon-restore-space-locations is on in this block: the four planets are gone
@@ -311,6 +314,8 @@ def test_setting_on(data):
     # Freeplay: nothing is hidden and imports stay on the real nauvis.
     check("original nauvis planet is not hidden",
           not planets.get("nauvis", {}).get("hidden"))
+    check("nauvis keeps the merged map_gen_settings (clone off, it is the live map)",
+          planets.get("nauvis", {}).get("map_gen_settings") is not None)
     bad = [f"{t}/{n}" for t, table in data.items()
            if isinstance(table, dict)
            for n, p in table.items()

@@ -501,13 +501,12 @@ failed before):
   state, and `prototypes/nauvis2.lua` (required from data-final-fixes) rewires
   `aquilo-solar-system-edge.from` to nauvis2 — unless `eon-restore-space-locations`
   is on (default since 0.1.13), in which case the edge stays at aquilo — hides the
-  original nauvis planet
-  (it is the dummy; its map_gen_settings must NOT be nilled — nilling them does
-  NOT break world creation, it silently makes the primary surface a VANILLA
-  default map instead, probe-verified 2.0.77: --create succeeds, surface 1 tile =
-  grass-1, planet still associated — because the settings ARE the merged map, and
-  the primary surface is generated from them at world creation), and re-sweeps
-  every `default_import_location`
+  original nauvis planet and NILS its map_gen_settings: the dummy primary surface
+  only stages a swap, so a vanilla engine-default map there is cheaper than the
+  merged program (world creation falls back to vanilla when the settings are
+  absent — probe-verified 2.0.77: --create succeeds, surface 1 tile grass-1, planet
+  still associated — and the deepcopy that made nauvis2 has already taken the
+  merged settings), and re-sweeps every `default_import_location`
   onto the clone (remove-planets.lua had pointed them all at nauvis). There is NO
   data-stage flag to hide a SURFACE — only the planet: hiding the dummy surface
   from the per-force list is the scenario's job at runtime, and the calls are

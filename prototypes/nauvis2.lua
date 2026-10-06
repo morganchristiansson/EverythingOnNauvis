@@ -30,13 +30,16 @@ if settings.startup["eon-nauvis2-clone"].value then
     data.raw["space-connection"]["aquilo-solar-system-edge"].from = "nauvis2"
   end
   -- The original nauvis is the dummy now: hide it from the starmap exactly like
-  -- every other removed planet. Its map_gen_settings must NOT be nilled: they ARE
-  -- the merged map. Nilling them does NOT break save creation -- world creation
-  -- silently falls back to the engine's default (vanilla) map (probe-verified
-  -- 2.0.77: -create succeeds, surface 1 tile = grass-1, planet still associated)
-  -- and a scenario may still stand players on it while a surface swap is in
-  -- flight.
+  -- every other removed planet, and nil its map_gen_settings. The settings ARE
+  -- the merged map, and the primary surface only exists as a staging area while a
+  -- surface swap is in flight, so a plain engine-default (vanilla) map there is
+  -- cheaper, faster and lighter than generating the full merged program for a
+  -- surface nobody plays on. Safe: world creation falls back to the default map
+  -- when the settings are absent (probe-verified 2.0.77: --create succeeds,
+  -- surface 1 tile = grass-1, planet still associated). MUST come after the
+  -- deepcopy above -- the clone's merged settings come out of it.
   data.raw.planet["nauvis"].hidden = true
+  data.raw.planet["nauvis"].map_gen_settings = nil
   -- remove-planets.lua swept every default_import_location to "nauvis"; with the
   -- clone live, platform import requests must land on the planet that exists.
   for _, types in pairs(data.raw) do
