@@ -64,20 +64,21 @@ end
 --
 -- The persisted set lives PER SURFACE, keyed by surface.name -- the only identity
 -- that survives a save/load (indices are session-local and reused after a delete).
--- The markers describe a MAP, not the mod: the scenario's reset throws the map
--- away by creating a NEW surface and re-associating the nauvis planet with it, so
--- each surface carries its own markers and a new surface starts empty without a
--- global wipe. storage[STATE_KEY] is therefore
+-- The markers describe a MAP, not the mod: a reset can replace the map either by
+-- clearing the current surface in place (Legendary Deathworld) or by creating a NEW
+-- surface for the next round, so each surface carries its own markers and a new
+-- surface starts empty without a global wipe. storage[STATE_KEY] is therefore
 -- { [surface.name] = { [cone.id] = marker } }, one marker table per surface.
 local builders = {}
 local STATE_KEY = "eon_volcano_territory_runtime"
 
 -- Which surface is ours is decided by ITS OWN MAP GEN SETTINGS, not by the
--- planet. The reset scenario pre-generates the next map on a SECOND surface while
--- the planet still points at the old one (a planet can only be associated with one
--- surface at a time), so a surface must be claimable BEFORE it is ever associated
--- -- and a pre-generated chunk never re-fires on_chunk_generated, so a surface that
--- waits for association arrives with nothing claimed. The merged map is the only
+-- planet. The primary surface can never lose its planet (LuaSurface.deletable is
+-- false for index 1 -- see the on_surface_cleared comment below), so a runtime
+-- second surface is PERMANENTLY unassociated, yet a pre-generated chunk never
+-- re-fires on_chunk_generated -- a surface whose chunks are touched before the gate
+-- accepts it stays unclaimed forever. The identity therefore must not depend on
+-- anything that changes with association. The merged map is the only
 -- one carrying a vulcanus_volcanism autoplace control (terrain.lua adds it to
 -- nauvis at the data stage; no vanilla surface has it), and a clone MUST copy the
 -- merged map's settings to have volcano terrain at all, so presence of the control
@@ -177,12 +178,17 @@ end)
 -- SAME ids while pointing at completely different places -- every new volcano would
 -- be skipped as "already decided" and the whole reset map would go unclaimed.
 --
--- The swap scenario takes the other road: it DELETES the old surface rather than
--- clearing it, and associates a brand-new one with the planet (on_pre_surface_deleted
--- below is the same cleanup for it). Both paths end at forget_surface, and both are
--- scoped to the one surface -- nobody else's markers are touched. The clone is
--- claimed WHILE IT IS STILL UNASSOCIATED (is_merged_map keys off the settings, not
--- the planet), so by swap time its map is already fully guarded.
+-- The PRIMARY surface (index 1, "nauvis") can never be deleted: LuaSurface.deletable
+-- is false for it, hardcoded in the engine (probe-verified 2.0.77; no prototype
+-- attribute anywhere). So the planet can never lose its surface, which means
+-- LuaPlanet::associate_surface can never succeed for nauvis (its precondition is
+-- exactly "the planet must not already have an associated surface") -- a runtime
+-- second surface can never become "the" nauvis surface. What a reset CAN do is
+-- clear() the primary in place (on_surface_cleared above) or run the next map on a
+-- second, permanently unassociated surface. on_pre_surface_deleted is the cleanup
+-- for any surface that IS deletable (every created one is); it shares forget_surface
+-- with the clear path, and both are scoped to the one surface -- nobody else's
+-- markers are touched.
 script.on_event(defines.events.on_surface_cleared, function(event)
   local surface = game.get_surface(event.surface_index)
   if surface == nil then return end

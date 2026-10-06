@@ -19,5 +19,12 @@ data:extend({
         setting_type = "startup",
         default_value = true,
         order = "c"
+    },
+    {
+        type = "bool-setting",
+        name = "eon-nauvis2-clone",
+        setting_type = "startup",
+        default_value = false,
+        order = "d"
     }
 })

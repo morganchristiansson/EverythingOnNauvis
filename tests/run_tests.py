@@ -94,24 +94,18 @@ def check(label, condition, detail=""):
 
 
 def set_default_value(value):
-    """Flip default_value in settings.lua (restored by restore_default_value)."""
+    """Set EVERY default_value in settings.lua to <value>, regardless of the
+    current literal. The old mechanism replaced only the first literal it found
+    ("true"): with a mix of true and false defaults -- eon-nauvis2-clone is false --
+    flipping "on" was a no-op for the false defaults and the nauvis2 asserts
+    silently tested the wrong state. main() restores the file from a snapshot.
+    """
     with open(SETTINGS_FILE) as f:
         content = f.read()
-    for literal in ("true", "false"):
-        marker = f"default_value = {literal}"
-        if marker in content:
-            with open(SETTINGS_FILE, "w") as f:
-                f.write(content.replace(marker, f"default_value = {value}"))
-            return literal
-    raise RuntimeError("could not find default_value in settings.lua")
-
-
-def restore_default_value(old_literal):
-    with open(SETTINGS_FILE) as f:
-        content = f.read()
+    flipped = content.replace("default_value = true", f"default_value = {value}")
+    flipped = flipped.replace("default_value = false", f"default_value = {value}")
     with open(SETTINGS_FILE, "w") as f:
-        f.write(content.replace(f"default_value = {not old_literal}".lower(),
-                                f"default_value = {old_literal}"))
+        f.write(flipped)
 
 
 def run_dump_data(base_dir):
@@ -214,6 +208,33 @@ def test_setting_off(data):
           and "nuke-effects-vulcanus" not in rocket_entities,
           repr(rocket_entities))
 
+    # nauvis2 (eon-nauvis2-clone on, as it is in this block -- the block runs with
+    # every setting default flipped to true): the swap planet exists, is an exact
+    # merged-map clone, and the solar-system edge points at it.
+    planets = data.get("planet", {})
+    nauvis2 = planets.get("nauvis2")
+    check("nauvis2 planet exists (clone setting on)", nauvis2 is not None)
+    if nauvis2 is not None:
+        ac = (nauvis2.get("map_gen_settings") or {}).get("autoplace_controls", {})
+        check("nauvis2 carries the merged map (vulcanus_volcanism control)",
+              "vulcanus_volcanism" in ac, repr(list(ac)[:3]))
+        check("nauvis2 clones the real map_gen_settings",
+              nauvis2.get("map_gen_settings") ==
+              planets.get("nauvis", {}).get("map_gen_settings"))
+    check("solar-system edge points at nauvis2 (the live planet)",
+          data.get("space-connection", {}).get("aquilo-solar-system-edge", {}).get("from") == "nauvis2")
+    # The original nauvis is the dummy: hidden from the starmap, and every
+    # default_import_location swept onto the clone (remove-planets.lua pointed them
+    # all at "nauvis", which no longer exists as a destination).
+    check("original nauvis planet is hidden (it is the dummy)",
+          bool(planets.get("nauvis", {}).get("hidden")))
+    bad = [f"{t}/{n}" for t, table in data.items()
+           if isinstance(table, dict)
+           for n, p in table.items()
+           if isinstance(p, dict) and p.get("default_import_location") is not None
+           and p["default_import_location"] != "nauvis2"]
+    check("all default_import_locations point at nauvis2", not bad, str(bad[:3]))
+
 
 def test_setting_on(data):
     print("Setting on (space platform restrictions kept):")
@@ -252,6 +273,23 @@ def test_setting_on(data):
           "nuke-effects-vulcanus" not in explosions)
 
 
+    # nauvis2 (eon-nauvis2-clone off, as it is in this block): a vanilla freeplay
+    # game stays a single-Nauvis game -- no clone planet, no rewire.
+    planets = data.get("planet", {})
+    check("nauvis2 planet absent (clone setting off)", "nauvis2" not in planets)
+    check("solar-system edge points at nauvis",
+          data.get("space-connection", {}).get("aquilo-solar-system-edge", {}).get("from") == "nauvis")
+    # Freeplay: nothing is hidden and imports stay on the real nauvis.
+    check("original nauvis planet is not hidden",
+          not planets.get("nauvis", {}).get("hidden"))
+    bad = [f"{t}/{n}" for t, table in data.items()
+           if isinstance(table, dict)
+           for n, p in table.items()
+           if isinstance(p, dict) and p.get("default_import_location") is not None
+           and p["default_import_location"] != "nauvis"]
+    check("all default_import_locations point at nauvis", not bad, str(bad[:3]))
+
+
 def test_mirror_invariants(data):
     """The invariants the runtime spot mirror holds by ASSUMPTION.
 
@@ -285,24 +323,21 @@ def test_mirror_invariants(data):
 def main():
     if set(os.listdir(MOD_DIR)) is None:
         sys.exit("mod source not found")
-    old_literal = None
+    # Snapshot settings.lua and restore it verbatim in all paths: the flip below
+    # touches every default, and the old restore-only-what-was-flipped bookkeeping
+    # twice left the file modified (first-occurrence replaces).
+    original_settings = open(SETTINGS_FILE).read()
     try:
         with tempfile.TemporaryDirectory(prefix="eon-test-off.") as base_dir:
-            old_literal = set_default_value("true") or old_literal
+            set_default_value("true")
             test_setting_off(run_dump_data(base_dir))
-        set_default_value("false")
-        try:
-            with tempfile.TemporaryDirectory(prefix="eon-test-on.") as base_dir:
-                dumped = run_dump_data(base_dir)
-                test_setting_on(dumped)
-                test_mirror_invariants(dumped)
-        finally:
-            restore_default_value(old_literal)
-    finally:
-        # Never leave a modified settings.lua behind
-        content = open(SETTINGS_FILE).read()
-        if "default_value = true" in content and old_literal == "false":
+        with tempfile.TemporaryDirectory(prefix="eon-test-on.") as base_dir:
             set_default_value("false")
+            dumped = run_dump_data(base_dir)
+            test_setting_on(dumped)
+            test_mirror_invariants(dumped)
+    finally:
+        open(SETTINGS_FILE, "w").write(original_settings)
 
     print()
     if failures:

@@ -467,9 +467,15 @@ failed before):
   work, never a wrong claim). The load path is empty on purpose. The markers live
   PER SURFACE: `storage["eon_volcano_territory_runtime"]` is keyed by `surface.name`
   (the only identity that survives a save/load; indices are session-local), because
-  a reset can replace the map by DELETING the surface and re-associating the nauvis
-  planet with a fresh one instead of clearing it in place — a new surface starts
-  with no state and the old surface's markers go with it. Which surface is "the" map
+  a reset can replace the map either by clearing the current surface in place or by
+  running the next round on a NEW surface created alongside it — a new surface starts
+  with no state and the old surface's markers go with it. (The primary surface, index
+  1 "nauvis", is NEVER deletable: `LuaSurface.deletable` is false for it, hardcoded
+  in the engine — probe-verified 2.0.77, and no prototype attribute exists anywhere —
+  so the planet can never lose its surface and `LuaPlanet::associate_surface` can
+  never move it to a runtime surface; "swap by re-associating the nauvis planet" is
+  not something the engine allows. `on_pre_surface_deleted` still matters for every
+  CREATED surface, which are all deletable.) Which surface is "the" map
   is decided by the surface's OWN settings — the `vulcanus_volcanism` autoplace
   control in its map_gen_settings must be present — never by the planet association
   or the literal name: the reset scenario pre-generates the next map on a SECOND,
@@ -482,6 +488,32 @@ failed before):
   and on_pre_surface_deleted drop just that surface's markers and cached builder; a
   0.1.13-and-earlier save's single shared marker table is hoisted under the surface
   name on first use.
+- **The legal swap: a cloned planet.** Since the primary can never be dissociated (see
+  above), a scenario "swaps the map" by running the game on `nauvis2` — an exact clone
+  of the merged planet enabled by the startup setting `eon-nauvis2-clone` (off by
+  default, so vanilla freeplay keeps one Nauvis). `LuaPlanet::create_surface`
+  materialises the clone's surface from the planet prototype (which the deepcopy
+  inherits, so NO settings-table juggling and no gravewort compile problem — verified
+  live: surface carries the merged vulcanus_volcanism control, `deletable = true`,
+  planet = nauvis2, and the mod claims its volcanoes through the same is_merged_map
+  gate). Deletion of that surface is legal, so the reset is: delete →
+  create_surface → teleport players; on_pre_surface_deleted clears the surface's
+  state, and `prototypes/nauvis2.lua` (required from data-final-fixes) rewires
+  `aquilo-solar-system-edge.from` to nauvis2, hides the original nauvis planet
+  (it is the dummy; its map_gen_settings must NOT be nilled — the primary surface
+  at index 1 is generated from them), and re-sweeps every `default_import_location`
+  onto the clone (remove-planets.lua had pointed them all at nauvis). There is NO
+  data-stage flag to hide a SURFACE — only the planet: hiding the dummy surface
+  from the per-force list is the scenario's job at runtime, and the calls are
+  `force.get_surface_hidden("nauvis")` / `force.set_surface_hidden("nauvis", true)`
+  with a DOT, not a colon (plain function values: the colon form raises "Expected
+  1 argument but 2 were given", probe-verified 2.0.77 — the same class as
+  `regenerate_segmented_units`). The scenario should re-assert it after any load. Probe-verified live (`tests/eon-probe-clone/` + rcon, 2.0.77):
+  claims land on the planet-created surface.
+- **Data-stage settings lookup uses the SHORT name.** `settings.startup["eon-nauvis2-clone"]`
+  works in data-final-fixes; the mod-prefixed `"EverythingOnNauvis-morganc.…"` form is
+  nil and aborts data loading ("./prototypes/nauvis2.lua: attempt to index field …
+  (a nil value)", probe-verified). Same convention as the control stage.
 - **The short-circuit**: `on_chunk_generated` asks `get_territory_for_chunk` first
   and skips when a territory holds the chunk — safe because the surface here only
   holds territories the mod created and a created territory always carries the
