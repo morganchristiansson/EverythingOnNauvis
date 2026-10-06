@@ -118,10 +118,20 @@ Tooling (dev-only mods in `tests/`):
   expression with lattice probes to find the sampling geometry.
 
 The reliable headless flow (everything else stalls):
+- `--start-server-load-scenario base/freeplay` is the one-command way to get a
+  runnable game with on_init FIRED and storage empty: a scenario starts a fresh
+  game every invocation (no save file, no script.dat). It takes the same
+  `--map-gen-seed` / `--map-gen-settings` flags --create did, so probe worlds are
+  still explicit. Verified 2.0.77 with an on_init marker mod: INIT fires, LOAD
+  never, on every re-run (the tmp save a scenario server materialises to host
+  from is scaffolding, not a load path). probe_runtime_territory.py and
+  live_server.py both run this way.
 - `--create` does not run control scripts, and the save then ships a `script.dat` that marks
   storage as initialised — so `--benchmark save.zip` also skips `on_init`. **Strip `script.dat`
   from the save zip first** (zipfile: copy all entries except `script.dat`) so `on_init` fires on
-  load.
+  load. This dance only remains for flows that genuinely need a PRE-EXISTING save to load
+  (--benchmark, --start-server on a real save); for anything that can boot fresh, load-scenario
+  above is strictly simpler.
 - Do ALL work inside `on_init`: `surface.request_to_generate_chunks(pos, radius)` then
   `surface.force_generate_chunk_requests()` (blocks synchronously) then scan and
   `helpers.write_file`. Requests made later, from `on_nth_tick`, are silently ignored headless;
@@ -652,10 +662,13 @@ save 9 µs per chunk) and brought 150 lines with it. Measure a cache against the
 alternative of not caching, on the quantity that actually varies, before building it.
 
 **A server of our own** (`tests/live_server.py`) -- the loop that made this
-debuggable. `start` builds a save, starts a headless server detached in the
+debuggable. `start` serves a fresh scenario world
+(`--start-server-load-scenario base/freeplay`, one factorio process, no save, no
+script.dat surgery -- on_init fires because a scenario's storage starts empty),
+detached in the
 background with rcon on 27016, and waits for rcon to answer; then every question
 is one call (`rcon_probe.py`, `rcon_coverage.py`, or the mod's own log), and
-`log` / `stop` / `restart` manage it. The end-to-end probe is the opposite on
+`log` / `stop` / `restart` manage it. The e2e probe is the opposite on
 purpose: it runs to completion unattended, and that is what it is for.
 
 "Why is there no territory here" is answered from the log, by hand: the claim line

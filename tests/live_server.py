@@ -55,6 +55,13 @@ def mod_list() -> list[dict]:
 
 
 def prepare(settings: str, seed: str) -> None:
+    """Build the state dir: mod directory + config. The world itself is NOT
+    pre-created: start() serves it with --start-server-load-scenario, which takes
+    the same --map-gen-seed/--map-gen-settings flags --create did and initialises
+    a fresh scenario game (on_init fires, storage starts empty) in ONE factorio
+    process. The old --create + strip-script.dat + --start-server pipeline is
+    gone; probe_runtime_territory.py already used load-scenario for the e2e.
+    """
     if RUN.exists():
         shutil.rmtree(RUN, ignore_errors=True)
     mods = RUN / "mods"
@@ -73,31 +80,16 @@ def prepare(settings: str, seed: str) -> None:
     (mods / "mod-list.json").write_text(json.dumps({"mods": mod_list()}, indent=2))
     (RUN / "config.ini").write_text(
         f"[path]\nread-data=/factorio/data\nwrite-data={write}\n")
-    save = RUN / "live.zip"
-    subprocess.run(
-        [FACTORIO, "--create", str(save), "--config", str(RUN / "config.ini"),
-         "--mod-directory", str(mods), "--map-gen-seed", seed,
-         "--map-gen-settings", settings],
-        env={**os.environ, "HOME": str(RUN)}, check=True, capture_output=True, timeout=900)
-    # A save created with --create ships a script.dat that marks storage as
-    # initialised, so on_init never fires on load (see AGENTS.md).
-    stripped = save.with_suffix(".tmp.zip")
-    import zipfile
-    with zipfile.ZipFile(save) as source, zipfile.ZipFile(stripped, "w",
-                                                         zipfile.ZIP_DEFLATED) as target:
-        for name in source.namelist():
-            if name != "script.dat":
-                target.writestr(name, source.read(name))
-    stripped.replace(save)
 
 
 def start(settings: str, seed: str) -> None:
     prepare(settings, seed)
-    save = RUN / "live.zip"
     log = (RUN / "server.log").open("w")
     process = subprocess.Popen(
-        [FACTORIO, "--start-server", str(save), "--config", str(RUN / "config.ini"),
+        [FACTORIO, "--start-server-load-scenario", "base/freeplay",
+         "--config", str(RUN / "config.ini"),
          "--mod-directory", str(RUN / "mods"),
+         "--map-gen-seed", seed, "--map-gen-settings", settings,
          f"--port={GAME_PORT}",
          f"--rcon-port={PORT}", f"--rcon-password={PASSWORD}"],
         env={**os.environ, "HOME": str(RUN)}, stdout=log, stderr=subprocess.STDOUT,
