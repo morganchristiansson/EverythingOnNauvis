@@ -2,6 +2,18 @@
 Version: 0.1.13
 Date: 2026-09-XX
   Changes:
+    - Territory state is stored PER SURFACE (storage keyed by surface.name), not in one
+      shared marker table: a reset that DELETES the old map and creates a fresh surface
+      (re-associating the nauvis planet with it, as the Legendary Deathworld-style
+      scenario does) now gets clean state by construction, and an old surface that
+      survives the swap keeps its own. A surface is "the map" when ITS OWN
+      map_gen_settings carry the merged map (the vulcanus_volcanism autoplace control),
+      planet or no planet -- so a second surface created to pre-generate the next map
+      in the background is claimed during pre-generation, and a pre-generated chunk
+      never re-fires on_chunk_generated, so that is the only timing that works. State
+      is cleared per surface on on_surface_cleared and on_pre_surface_deleted (the old
+      global wipe is gone). Old saves' single marker table is hoisted under the
+      surface name on first use, so claims survive an upgrade.
     - Fix: quantum-processor could not be crafted on Nauvis. Its surface condition is
       a max only (pressure <= 600, Aquilo's value; Nauvis is 1000), and the rewrite
       only relaxed conditions that carry a positive minimum, so the ceiling survived

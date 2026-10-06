@@ -266,9 +266,20 @@ Demolisher territory design (what the current code does, why):
   per contour can't be split per-region; only placement can, via the property. Baseline
   probe: `tests/probe_baseline.py` + `tests/eon-probe-baseline/` (EON=1 scans the merged
   map; GLEBA=1 loads `tests/eon-probe-glebanauvis/`, which copies vanilla gleba's
-  map_gen_settings onto nauvis so the same surface generates vanilla gleba — that works;
-  `game.create_surface(name, settings)` does NOT honor map_gen_settings tables and makes
-  junk terrain with random-other-planet tiles).
+  map_gen_settings onto nauvis so the same surface generates vanilla gleba — that works).
+  `game.create_surface(name, settings)` DOES honor map_gen_settings, with two measured
+  requirements (probe-verified 0.1.13, 2.0.77, seed 12345; see `tests/eon-probe-clone/`
+  + `tests/probe_clone_surface.py`): the settings must be passed AS the flat
+  MapGenSettings table, NOT wrapped in a `{map_gen_settings = ...}` key (the wrapped
+  shape reads as an empty settings table and explodes); and
+  `default_enable_all_autoplace_controls` must be explicitly `false` — with it true
+  or unset, the game autoplaces EVERY decorative and dies compiling
+  `decorative:fulgoran-gravewort:probability` (its default references
+  `control:fulgora_islands:frequency`, which a non-fulgora surface does not define).
+  A clone made this way renders byte-identical volcanic terrain to the real map
+  (319 volcanic chunk centres of 794) and the mod claims it while it is still
+  UNASSOCIATED (`planet == nil`) — the identity gate is the surface's own settings,
+  never the planet.
 - Fish: vanilla prototype `fish.autoplace.probability_expression = 0.01` (a literal number) and
   fish only materialize on liquid tiles; per-planet enablement is
   `planet.map_gen_settings.autoplace_settings.entity.settings["fish"] = {}`.
@@ -453,7 +464,24 @@ failed before):
   claim is the mirror's chunk list, one `create_territory` per slice of the cut;
   markers persist (`true` / `"empty"` / `"unseen"` / per-slice table) and are the
   ONLY persistent state — correctness does not depend on them (a stale index costs
-  work, never a wrong claim). The load path is empty on purpose.
+  work, never a wrong claim). The load path is empty on purpose. The markers live
+  PER SURFACE: `storage["eon_volcano_territory_runtime"]` is keyed by `surface.name`
+  (the only identity that survives a save/load; indices are session-local), because
+  a reset can replace the map by DELETING the surface and re-associating the nauvis
+  planet with a fresh one instead of clearing it in place — a new surface starts
+  with no state and the old surface's markers go with it. Which surface is "the" map
+  is decided by the surface's OWN settings — the `vulcanus_volcanism` autoplace
+  control in its map_gen_settings must be present — never by the planet association
+  or the literal name: the reset scenario pre-generates the next map on a SECOND,
+  unassociated surface (a planet can only hold one surface), and the clone must be
+  claimed while it is still unattached, because a pre-generated chunk never re-fires
+  on_chunk_generated and a map that waited for association would arrive unclaimed.
+  The control is the merged map's fingerprint (terrain.lua adds it to nauvis at the
+  data stage; no vanilla surface has it) and the mirror keys off the same control.
+  Both on_surface_cleared
+  and on_pre_surface_deleted drop just that surface's markers and cached builder; a
+  0.1.13-and-earlier save's single shared marker table is hoisted under the surface
+  name on first use.
 - **The short-circuit**: `on_chunk_generated` asks `get_territory_for_chunk` first
   and skips when a territory holds the chunk — safe because the surface here only
   holds territories the mod created and a created territory always carries the

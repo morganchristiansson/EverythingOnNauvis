@@ -1,0 +1,18 @@
+{
+  "name": "eon-probe-clone",
+  "version": "0.0.1",
+  "title": "EoN clone-surface probe (dev only)",
+  "description": "Creates a second surface from the merged map's settings at runtime and checks the mod claims its volcanoes while the surface is still unassociated with any planet.",
+  "author": "morganc",
+  "factorio_version": "2.0",
+  "dependencies": [
+    "base >= 2.0.0",
+    "space-age >= 2.0.0",
+    "EverythingOnNauvis-morganc >= 0.1.0"
+  ],
+  "scenario": {
+    "maps": [
+      "clone"
+    ]
+  }
+}

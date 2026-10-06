@@ -1,0 +1,5 @@
+{
+  "name": "eon-probe-clone",
+  "description": "The clone-surface probe, as a SCENARIO: top-level script, one run. A mod-level control.lua would run the probe twice and overwrite its own report.",
+  "order": "a"
+}
