@@ -171,7 +171,8 @@ local PATROL_MAX_POINTS = PatrolPath.PATROL_DIRECTIONS
 -- share scan is the mirror's most expensive call and every caller already has it.
 --- `share` is the cone's own chunks and `contenders` the cones it overlaps. Both are
 --- inputs: the rivals that dent the route are read from the contender list rather
---- than searched for again.
+--- than searched for again. This is the WHOLE claim's route; a cut claim builds its
+--- own loops in volcano-split.lua and only shares the northward start below.
 function M.patrol_path(volcanoes, cone, share, contenders)
   -- A circle that WARPS with the volcano: a round claim gets a circle, one squashed
   -- against a neighbour gets that circle dented on the crowded side, following the
@@ -190,31 +191,12 @@ function M.patrol_path(volcanoes, cone, share, contenders)
     local x, y = point_at(2 * math.pi * index / PATROL_MAX_POINTS)
     patrol_path[#patrol_path + 1] = { x = x, y = y }
   end
-  -- The patrol path is returned as sampled; where the unit STARTS is spawn_pose's job,
-  -- because the spawn form it uses (position + direction) is the one that honours
-  -- `direction` -- with body_nodes the engine ignored it and always faced north,
-  -- which is what produced a U-turn on spawn.
-  -- The NORTHWARD leg has to be the one the head sets off along, and the head no
-  -- longer starts at path[1]: body_nodes is reversed before create_segmented_unit
-  -- (get_body_nodes is front-to-back, so the head walks toward DECREASING index), so
-  -- the head begins at the far end of the laid body and its first move is the
-  -- patrol path's LAST leg. Rotating so the FIRST leg points north therefore aimed the
-  -- spawn the wrong way -- and by how much depended on where arc = body-length
-  -- falls, which is why the playtest saw it on the small demolishers (51 tiles) and
-  -- not the big ones (102). So the most-northward leg is rotated into the LAST
-  -- position, and the wrap-around leg (last -> first) is the one it takes.
-  local best_index, best_north = 1, -math.huge
-  for index = 1, #patrol_path do
-    local from, to = patrol_path[index], patrol_path[(index % #patrol_path) + 1]
-    local leg = (to.y - from.y) / math.max(1, math.sqrt((to.x - from.x) ^ 2 + (to.y - from.y) ^ 2))
-    if leg > best_north then best_north, best_index = leg, index end
-  end
-  local start = best_index % #patrol_path + 1
-  local rotated = {}
-  for step = 0, #patrol_path - 1 do
-    rotated[#rotated + 1] = patrol_path[((start - 1 + step) % #patrol_path) + 1]
-  end
-  return rotated
+  -- The patrol path is returned as sampled; where the unit STARTS is start_north's
+  -- job (PatrolPath.start_north, shared with a cut claim's own loop
+  -- volcano-split.lua), because the spawn form it uses (position + direction) is
+  -- the one that honours `direction` -- with body_nodes the engine ignored it and
+  -- always faced north, which is what produced a U-turn on spawn.
+  return PatrolPath.start_north(patrol_path)
 end
 
 --- The body length of a demolisher prototype, in tiles behind the head.

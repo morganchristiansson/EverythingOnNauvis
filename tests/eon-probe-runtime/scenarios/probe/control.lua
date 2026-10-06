@@ -635,15 +635,19 @@ script.on_init(function()
     end
     local wanted = 0
     for _ in pairs(set) do wanted = wanted + 1 end
-    -- Which territory, if any, now holds this cone's volcanic chunks?
-    local owner, members = nil, {}
+    -- Which territories, if any, now hold this cone's volcanic chunks? A cone big
+    -- enough for two guards is CUT IN TWO (volcano-split.lua), so this is a SET and
+    -- not one handle -- and the check below is about the cone's whole claim, which is
+    -- what is cut up, rather than about one slice of it.
+    local owners, members = {}, {}
     for key in pairs(set) do
       local x, y = key:match("^(-?%d+),(-?%d+)$")
       local territory = surface.get_territory_for_chunk({ x = tonumber(x), y = tonumber(y) })
-      if territory and territory.valid then owner = territory end
+      if territory and territory.valid then owners[territory_key(territory)] = territory end
     end
-    if owner then
-      for _, member in ipairs(owner.get_chunks()) do
+    local owner = next(owners)
+    for _, territory in pairs(owners) do
+      for _, member in ipairs(territory.get_chunks()) do
         members[member.x .. "," .. member.y] = true
       end
     end
@@ -652,6 +656,10 @@ script.on_init(function()
     -- now rendered and are still members). It is: the territory COVERS every
     -- volcanic chunk of the cone, and holds nothing the mirror did not assign to
     -- it.
+    --
+    -- A cone big enough for two guards is CUT IN TWO and the two territories are read
+    -- together below (see the `owners` set), because the claim is the whole thing that
+    -- was cut up -- not one piece of it.
     local candidate_set = {}
     for _, chunk in ipairs(candidate.chunks) do
       candidate_set[chunk.x .. "," .. chunk.y] = true
@@ -1138,6 +1146,23 @@ script.on_init(function()
   -- 4. Compare the surface against the mirror's footprints inside the disc.
   local matched, mismatched, missing_chunks, extra = 0, 0, 0, 0
   local on_volcano, off_volcano, off_examples = 0, 0, {}
+  -- A claim big enough for two guards is CUT IN TWO (volcano-split.lua), so a cone's
+  -- ground is spread over two territories and the question below -- "does the surface
+  -- hold what the mirror claimed for this cone, and nothing else" -- is about the cone,
+  -- not about whichever slice happens to hold the chunk being walked. The union is
+  -- built once, here, rather than per chunk.
+  local cone_members = {}
+  for _, entry in ipairs(entries) do cone_members[entry.id] = {} end
+  for _, territory in ipairs(surface.get_territories()) do
+    if territory.valid and volcano_territories[territory_key(territory)] then
+      for _, member in ipairs(territory.get_chunks()) do
+        local member_key = member.x .. "," .. member.y
+        for _, entry in ipairs(entries) do
+          if entry.set[member_key] then cone_members[entry.id][member_key] = true end
+        end
+      end
+    end
+  end
   -- The per-chunk answer must name a cone for every chunk a territory holds: a
   -- territory may not contain a chunk the mirror does not assign to its cone.
   local unowned_territory_chunks, unowned_examples = 0, {}
@@ -1190,12 +1215,14 @@ script.on_init(function()
             --   * every rendered-volcanic candidate must be a member: a cone that
             --     dropped its own ground is the half-guarded-volcano bug;
             --   * a member the mirror does not assign to this cone is a leak.
+            -- Members are the cone's own across every slice of its claim (above).
+            local all_members = cone_members[expected_here.id] or members
             local all_present = true
             for member_key in pairs(expected_here.set) do
-              if not members[member_key] then all_present = false end
+              if not all_members[member_key] then all_present = false end
             end
             local no_foreign = true
-            for member_key in pairs(members) do
+            for member_key in pairs(all_members) do
               if not expected_here.expected[member_key] then no_foreign = false end
             end
             if all_present and no_foreign then

@@ -1,0 +1,17 @@
+{
+  "name": "eon-probe-territory-lifecycle",
+  "version": "0.0.1",
+  "title": "EoN territory lifecycle prober (dev only)",
+  "description": "Creates a runtime territory, kills its segmented unit, and reports whether the territory object survives and whether get_territory_for_chunk still answers.",
+  "author": "morganc",
+  "factorio_version": "2.0",
+  "dependencies": [
+    "base >= 2.0.0",
+    "space-age >= 2.0.0"
+  ],
+  "scenario": {
+    "maps": [
+      "probe"
+    ]
+  }
+}

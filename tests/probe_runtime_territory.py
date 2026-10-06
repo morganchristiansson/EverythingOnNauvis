@@ -9,7 +9,9 @@ generates a disc around a volcano and asserts:
   * every chunk the mirror claims is in a territory (no unguarded volcano);
   * each created territory holds EXACTLY the mirror's tile-truth chunk list -- the
     list is complete the FIRST time, which is what the one-call-per-territory
-    design buys;
+    design buys. A cone big enough for two guards is CUT IN TWO and holds two of
+    them (volcano-split.lua), so this is per SLICE of a claim, and the coverage
+    check below is about the cone's whole claim rather than one piece of it;
   * every territory chunk is on rendered volcano ground;
   * deleting and regenerating the same chunks creates nothing (no re-creation);
   * a cone whose chunks were all ungenerated gets its complete territory in the
@@ -461,7 +463,7 @@ def main():
           f"  |  outside own disc: {report.get('territory_chunks_outside_cone_disc')}")
     if not failures:
         print(f"RUNTIME TERRITORY OK: {report['territories']} territories (one per "
-              f"cone), {report['chunks_matching_footprint']} chunks matching the mirror "
+              f"slice of a claim, so a split volcano has two), {report['chunks_matching_footprint']} chunks matching the mirror "
               f"exactly, {on} of {on + off} on rendered volcano, "
               f"{report.get('segmented_units')} demolisher segment groups, late cone "
               f"built in one wave ({late['members']} chunks, exact)")

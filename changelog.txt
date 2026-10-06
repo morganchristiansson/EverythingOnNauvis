@@ -62,6 +62,107 @@ Date: 2026-09-XX
       displacement rather than a search for it: one noise evaluation per direction,
       where the previous root find marched 76 samples per direction for the last
       crossing (2,432 noise evaluations and 16 ms per volcano).
+    - A BIG VOLCANO CARRIES TWO GUARDS. The claim is cut in two with one straight cut
+      through the cone's own centre -- a wedge of some fraction of the disc and the
+      rest of it -- and each piece becomes its own territory with its own patrol loop
+      and its own demolisher, so a big volcano is walked by a big guard and a medium
+      one at the same time. Why a cut through the centre: each piece then contains the
+      apex, so both guards stand on the middle of the volcano rather than one of them
+      patrolling a rim fragment. Why ONE cut and not two: three pieces of a circle are
+      ~120 degree sectors, whose largest inscribed circle is 0.16 of the disc against
+      0.41 for a quadrant -- the angles get too sharp to carry a guard's body.
+    - The cut is clamped to a 90-180 degree wedge (a quarter to a half of the disc);
+      the other side is the remainder, since two pieces of a disc cut through its centre
+      cannot both be halves without a third piece between them. What the clamp costs is
+      the size mix: medium+big becomes a narrow band of the largest cones rather than
+      the common case, and sliver slices (which used to carry a guard that walked a pin)
+      are gone.
+    - The two guards are ONE SIZE STEP apart (small+medium, medium+big, and
+      big+behemoth with a modded fourth rung), never small+big. The sizes are not
+      chosen here: a slice with a fraction f of the area has a size fraction of
+      sqrt(f) times the cone's, and the cut is the one that lands the two sides on
+      adjacent rungs of the existing ladder (volcano-demolisher.lua), taken from the
+      middle of the range of cuts that qualify rather than off one edge of it. A cone
+      that no cut can do is left WHOLE, and says so in the log with the reason --
+      usually that it already carries the smallest guard, or that it is too small to
+      cut. On the vanilla ladder that leaves mostly small+medium and medium+big only
+      on the very largest cones: a cone sitting just above a tier boundary is already
+      one rung from the one below, so halving it drops it two.
+    - The two guards of one volcano no longer meet in the middle of it. Wedges closed at
+      the apex put both patrol loops through the same point, so the two guards converged
+      on the centre and walked each other's ground (measured: 0 tiles between the two
+      loops). Each loop now closes on an INNER ARC -- the volcano's own ground curve
+      scaled in, so it runs around the lava roughly where the lava is -- and the two of
+      them are two rings around the same middle. The claim is not cut back: a caldera of
+      unclaimed ground there was tried and dropped, because it is a hole in a volcano
+      and it made the claim something other than the mirror's chunk list.
+    - The inner arc does not hug the claim's edge, and it does not jitter. It used to
+      follow the claim's own inner edge, which is chunk-quantised, so it stepped 32 tiles
+      between neighbouring directions and the guard turned through a corner at every step;
+      the playtest saw both ("hugging it too closely", "jitter in the inner path"). It is
+      now a smooth curve at a fixed fraction of the volcano's ground radius, and its span
+      is narrower than the outer arc's so it keeps clear of the cut lines, because
+      membership is decided by the chunk centre. The sharpest corner anywhere over three
+      seeds and three frequencies, and not one point of either loop stands on the other
+      slice's ground.
+    - The two joins where a loop's legs meet its arcs are RIGHT ANGLES again, and
+      nothing is corner-cut. Both arcs share one span, so a leg is radial and a circle's
+      tangent is perpendicular to its radius; the guard rounds it itself, because its
+      patrolling turning radius is a whole radian per tile and the arcs stop well short
+      of the cuts, leaving it open ground to do that in. Giving the inner arc its own
+      narrower span -- which is what this did first -- made the leg run back across the
+      arc, and the join came out at 134-177 degrees: a hairpin no body can follow.
+      Corner cutting is worse than the corner it smooths, since a fillet is a list of
+      short edges each demanding a turn the body cannot make.
+    - The inner arc now follows the LAVA, which took finding where the lava is: the
+      expressions resolve to a lava pool at 0.060 of a cone's width with a lava-hot ring
+      out to 0.083 and nothing beyond 0.106, so the whole lava complex is inside a tenth
+      of the width -- and the arc was walking at 0.158, outside all of it. It is now at
+      0.115, just past the lava, and because the lava comes from the same spot field the
+      outer arc does, it follows the pool's rough outline for free. The wedge shrank with
+      it (a chunk's clearance from the cut is a fixed number of tiles, and the rim is now
+      near the middle), and every point of a loop must have a quarter-chunk of claim under
+      it in all four directions or the cut is refused: a point inside the claim is not
+      enough when the guard is a tile wide and the line between two of its points is not
+      the claim.
+    - The two guards of one volcano are kept a CHUNK apart, and it is measured rather
+      than hoped for: the arcs end a chunk clear of the cut lines, and the plan re-checks
+      the closest approach between the two finished loops and refuses the cut if it is
+      under a chunk. The one way it failed was a patrol point the walk moved, which is
+      how 19-tile passes were found. A cone whose rim cannot spare a chunk is left
+      whole: there is no room for two loops on it.
+    - FIX: both of a slice's legs joined the SAME end of its outer arc, so the guard
+      U-turned there and backtracked over ground it had already walked. One stray line
+      was appending the outer arc's radius to the inner arc's point list as well, which
+      made the outline the outer arc out, the inner arc in, and the outer arc again.
+      Every other measurement was happy with it -- every point on claimed ground, the
+      loop long enough for the guard, the sharpest corner 9.9 degrees -- so the check is
+      a new one: the bearing from the volcano's centre around the loop turns one way all
+      the way round except once at each of the two legs, and a backtrack shows up as
+      four. It had been costing cuts as well: a doubled outer arc has chords that span
+      twice as much ground, so they crossed a neighbour's dent and came back off the
+      claim (measured: 11-27 volcanoes cut per map before, 22-33 after, and the two
+      loops went from touching to 12-64 tiles apart).
+    - A slice is only claimed when BOTH guards fit, and each patrol path is a
+      PIE-SLICE OUTLINE of its piece: the arc the whole volcano would have walked
+      (the same radius curve, restricted to the wedge's directions), two legs running in
+      along the cuts, and their tip. A half-disc slice is a half circle with a diameter.
+      The corners where a leg meets the arc are right angles -- which a demolisher's body
+      cannot walk -- so they are rounded; the sharpest corner anywhere is 10 degrees. A
+      side that cannot carry even the smallest demolisher, or that comes back from the
+      ladder stepped down from what its own area asked for, means no cut at all. A cut volcano is also decided slice by
+      slice, each by a chunk of its OWN, because every list handed to
+      create_territory needs a generated chunk and the chunk that woke the mod
+      satisfies one of them at most; the other waits for the next chunk event that
+      carries one of its own. The cut is a pure function of the map (the bearing is a
+      hash of the cone's own id), so both pieces are identical on every load in either
+      generation order, and the pieces are DISJOINT because the cut test is TOTAL --
+      every chunk takes a side, with no third outcome. That is proved, not assumed:
+      create_territory settles an overlap silently by taking the chunk from whoever
+      held it, so an overlap would make the two pieces depend on which was built first
+      with nothing in the log. The apex chunk, the one the two cut lines meet in, goes
+      to one side like any other (both loops stay 23+ tiles from it); excluding it
+      instead would put an unclaimed hole in the middle of every cut volcano.
     - Demolishers are placed explicitly, in the same pass that creates the
       territory: one per volcano, sized by the cone's rendered width, and created
       WHOLE with body_nodes laid along its own patrol path at one-tile spacing, up to

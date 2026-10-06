@@ -608,7 +608,6 @@ end
 local WOBBLE_BOUND_TILES = 40
 
 function Volcanoes:claim_winner(contenders, x, y)
-  local best, best_distance = nil, nil
   -- The split has to be decided where the FIELD is read, which is the displaced
   -- point. The wobble is a property of the position, not of the cone, so applying it
   -- here keeps every contender judged on the same ground -- and it is the same test
@@ -619,7 +618,16 @@ function Volcanoes:claim_winner(contenders, x, y)
   -- because the set is the ring's cones -- seven of them at 600% volcanism -- and a
   -- wobble evaluation is twelve basis_noise samples: evaluating each of them cost 87 us
   -- a chunk, and this costs 3.
-  local wx, wy = M.wobble(self.context, x, y)
+  return self:claim_winner_at(contenders, x, y, M.wobble(self.context, x, y))
+end
+
+-- The same test with the wobble already evaluated at (x, y): disc_chunks computes
+-- the displacement once per chunk and uses it for BOTH its own terrain test and the
+-- ownership test, rather than paying two twelve-sample noise evaluations for the
+-- same point. Public claim_winner keeps the one-eval wrapper for the callers that
+-- have no wobble to hand over.
+function Volcanoes:claim_winner_at(contenders, x, y, wx, wy)
+  local best, best_distance = nil, nil
   local sx, sy = x + wx, y + wy
   for i = 1, contenders.n do
     local other = contenders[i]
@@ -659,6 +667,14 @@ local function disc_chunks(self, cone, contenders, owned)
   -- is within `basement + core_radius` of the cone's centre), then a distance test
   -- per chunk. Scanning the neighbouring regions per chunk instead costs a 25x
   -- region sweep per chunk, which is most of a territory's cost.
+  --
+  -- The box is PRUNED before any wobble: the displacement is bounded
+  -- (WOBBLE_BOUND_TILES), so a chunk whose un-wobbled centre is further than
+  -- radius + bound can never be claimed however the noise behaves there -- and the
+  -- wobble evaluation (twelve basis_noise samples) is the expensive thing. The
+  -- corners of the box, which are most of it, cost one arithmetic test each.
+  local radius_sq = (VC.VOLCANIC_EDGE_FRACTION * cone.width
+    + WOBBLE_BOUND_TILES) ^ 2
   local chunks = {}
   for dx = -reach, reach do
     for dy = -reach, reach do
@@ -667,21 +683,27 @@ local function disc_chunks(self, cone, contenders, owned)
       -- test must ask about the same point, or a cone could claim a chunk it
       -- does not own.
       local px, py = chunk_point(cx, cy)
-      -- The claim is the volcano TERRAIN, in the frame the spot volcanoes is
-      -- evaluated in -- which is the wobbled one. A clean disc is wrong in both
-      -- directions, and the data stage's own mask
-      -- (`eon_vulcanus_terrain > 0`) is a wobbled disc of the same fraction.
-      local wx, wy = M.wobble(self.context, px, py)
-      local ddx, ddy = (px + wx) - cone.x, (py + wy) - cone.y
-      local radius = VC.VOLCANIC_EDGE_FRACTION * cone.width
-      if ddx * ddx + ddy * ddy <= radius * radius then
-        local keep = not owned
-        if owned then
-          local owner = self:claim_winner(contenders, px, py)
-          keep = owner and owner.id == cone.id
-        end
-        if keep then
-          chunks[#chunks + 1] = { x = cx, y = cy }
+      local ddx, ddy = px - cone.x, py - cone.y
+      if ddx * ddx + ddy * ddy <= radius_sq then
+        -- The claim is the volcano TERRAIN, in the frame the spot volcanoes is
+        -- evaluated in -- which is the wobbled one. A clean disc is wrong in both
+        -- directions, and the data stage's own mask
+        -- (`eon_vulcanus_terrain > 0`) is a wobbled disc of the same fraction.
+        -- ONE wobble evaluation per chunk, shared between the disc test and the
+        -- ownership test: claim_winner used to evaluate it again on the same point.
+        local wx, wy = M.wobble(self.context, px, py)
+        local sx, sy = px + wx, py + wy
+        local sdx, sdy = sx - cone.x, sy - cone.y
+        local radius = VC.VOLCANIC_EDGE_FRACTION * cone.width
+        if sdx * sdx + sdy * sdy <= radius * radius then
+          local keep = not owned
+          if owned then
+            local owner = self:claim_winner_at(contenders, px, py, wx, wy)
+            keep = owner and owner.id == cone.id
+          end
+          if keep then
+            chunks[#chunks + 1] = { x = cx, y = cy }
+          end
         end
       end
     end

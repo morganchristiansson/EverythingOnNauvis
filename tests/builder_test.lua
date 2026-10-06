@@ -8,72 +8,15 @@
 -- localise, because there was nowhere smaller to look.
 --
 -- Run: lua tests/builder_test.lua
-package.path = "/workspace/?.lua;" .. package.path
+package.path = "/workspace/tests/?.lua;/workspace/?.lua;" .. package.path
 
--- Factorio's global log(), captured so the test can see what the builder said.
-LOGGED = {}
-function log(message) LOGGED[#LOGGED + 1] = tostring(message) end
+-- The runtime prototype registry and log() stub live in tests/proto_stub.lua (one
+-- home for the measured demolisher values -- see there for where they come from).
+-- tests/split_shape.lua and tests/split_probe.lua load the same stub.
+require("proto_stub")
 
 -- The runtime prototype registry, stubbed with the real values read from a live
 -- game (`prototypes.entity[name].segment_engine`, asked over rcon): the builder
--- reads the body's length AND its node budget from here, and a test that stubbed
--- either would be testing a different builder. `distance_from_head` is CUMULATIVE
--- and `max_body_nodes` is the cap -- big 106 / medium 81 / small 55, for bodies of
--- 101.92 / 76.43 / 50.88 tiles. (The API docs say 63 for all three; the prototypes
--- do not agree, and the prototypes are what the engine enforces.)
-prototypes = { entity = {} }
-for _, spec in ipairs({ { "small-demolisher", 41, 50.88296875, 55 },
-                        { "medium-demolisher", 41, 76.431875, 81 },
-                        { "big-demolisher", 41, 101.91828125, 106 } }) do
-  local segments = {}
-  -- Cumulative, and shaped like the real curve (fast at the head, ~1.9/tile at the
-  -- tail): the builder only reads the last value, but a stub that were linear would
-  -- hide a builder that walked the list.
-  for index = 1, spec[2] do
-    segments[index] = { distance_from_head = spec[3] * (index / spec[2]) ^ 0.92 }
-  end
-  -- patrolling_turn_radius is read for the same reason as the rest: the builder
-  -- lays the body within it, and a stub without it would exercise a builder that
-  -- places nothing. It is on the PROTOTYPE ROOT, not in segment_engine -- which is
-  -- how reading it from the wrong place placed no demolisher anywhere. One tile is
-  -- a plausible demolisher value; the real one comes off the prototype.
-  prototypes.entity[spec[1]] = { name = spec[1], type = "segmented-unit",
-                                 segment_engine = { segments = segments,
-                                                    max_body_nodes = spec[4] },
-                                 patrolling_turn_radius = 1.0 }
-end
-
--- prototypes.get_entity_filtered, which is how the builder discovers the
--- demolisher ladder (see discover_demolishers). The real engine does this filtering
--- in C++; the stub does what it says on the tin and returns only segmented units.
-prototypes.get_entity_filtered = function(filters)
-  local want_type = nil
-  for _, filter in ipairs(filters or {}) do
-    if filter.filter == "type" then want_type = filter.type end
-  end
-  -- A plain array in BODY-LENGTH ORDER, which is the contract the real engine
-  -- satisfies: it orders same-type prototypes by their `order` string, and these
-  -- three (small=s-h, medium=s-i, big=s-j) come back smallest first.
-  --
-  -- Two things this stub deliberately does NOT reproduce, both of which the real
-  -- collection does:
-  --   * it is name-keyed userdata, so `out[1]` is nil and `table.sort` rejects it
-  --     outright -- an ordinary array hides both, which is how "table expected, got
-  --     userdata" reached a gate twice.
-  --   * `pairs` over `prototypes.entity` yields HASH order, not the engine's. Taking
-  --     that order verbatim trips the ladder's order check on every run, which is the
-  --     check doing its job on a stub that does not honour the contract.
-  local matched = {}
-  for name, proto in pairs(prototypes.entity) do
-    if want_type == nil or proto.type == want_type then matched[#matched + 1] = proto end
-  end
-  table.sort(matched, function(a, b)
-    local left, right = a.segment_engine.segments, b.segment_engine.segments
-    return left[#left].distance_from_head < right[#right].distance_from_head
-  end)
-  return matched
-end
-
 local cones = require("noise-mirror.volcano-cones")
 local Builder = require("volcano-territory")
 local Demolisher = require("volcano-demolisher")
@@ -134,6 +77,9 @@ local function fake_surface(centre_chunk, radius_chunks, log)
     end,
     create_segmented_unit = function(spec)
       units[#units + 1] = spec.name
+      -- ON the territory it was placed on, which is the only way a test can say
+      -- which guard belongs to which claim once a ring of cones is in play.
+      if spec.territory then spec.territory.units[#spec.territory.units + 1] = spec.name end
       -- The WHOLE spec, body nodes included. Recording only the name is what let a
       -- three-lap spiral through: the unit existed, so every assertion passed while
       -- the shape the engine was handed was nonsense.
@@ -217,7 +163,9 @@ end
 --- cone in the ring, so a batch creates several territories and "how many were
 --- created" says nothing about this cone -- count the one that holds its ground.
 local function territory_for(log, cone)
-  local share = volcanoes:cone_chunks(cone, volcanoes:contenders_for(cone))
+  -- `cone` may be a SLICE (volcano-split.lua), which carries its own chunk list: a
+  -- cut claim is two territories and "the one holding its chunks" is per slice.
+  local share = cone.share or volcanoes:cone_chunks(cone, volcanoes:contenders_for(cone))
   local best, best_hits = nil, 0
   for _, territory in ipairs(log.created) do
     local held = 0
@@ -238,7 +186,7 @@ do
   centre = hostable_cone()
   local surface, created, placed_units, placed_specs = fake_surface(
     { x = math.floor(centre.x / 32), y = math.floor(centre.y / 32) }, 16, log)
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   -- A block around the cone's centre, because a cone is decided when a chunk of ITS
   -- OWN arrives and on a fragment the centre chunk belongs to a neighbour. Delivering
   -- the centre chunk alone was passing for the wrong reason: the candidate set that
@@ -249,7 +197,7 @@ do
   for dy = -2, 2 do for dx = -2, 2 do
     builder:on_chunk_generated{ x = bx + dx, y = by + dy }
   end end
-  check("the cone is settled", builder.created[centre.id] == true)
+  check("the cone is settled", builder:decided(centre))
   -- Count the territories that hold THIS cone's chunks: the event's ring holds
   -- several cones, and they all get claimed.
   local mine, hits, share = territory_for(log, centre)
@@ -293,12 +241,12 @@ do
   for id, cone in pairs(existing) do centre = cone break end
   -- a surface generated somewhere else entirely
   local surface = fake_surface({ x = 100000, y = 100000 }, 1, log)
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   builder:on_chunk_generated{ x = 100000, y = 100000 }
   -- Not settled, so the next chunk nearby will ask again: a cone the engine cannot
   -- take yet is the one thing the marker must NOT remember. There is no "unseen"
   -- value any more -- absent means exactly this.
-  check("it is not settled", builder.created[centre.id] ~= true)
+  check("it is not settled", not builder:decided(centre))
   check("no territory was created", #log.created == 0)
 end
 
@@ -309,7 +257,7 @@ do
   for id, cone in pairs(existing) do centre = cone break end
   local cx, cy = math.floor(centre.x / 32), math.floor(centre.y / 32)
   local surface = fake_surface({ x = cx, y = cy }, 24, log)
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   -- DELIVER THE CONE'S OWN CHUNKS, not a block around its centre. That block was a
   -- guess about where the cone's ground is, and it made this test FLAKY -- two runs in
   -- three failed, because `pairs` picks an arbitrary cone and a fragment's own chunks
@@ -329,20 +277,50 @@ do
   builder:on_chunk_generated{ x = cx, y = cy }
   builder:on_chunk_generated{ x = cx + 1, y = cy }
   -- A repeat event may legitimately claim ANOTHER cone of the ring (one that had
-  -- nothing revealed when the first event landed), so the invariant is about this
-  -- cone: it must still have exactly one territory, holding its whole share.
-  local still, hits, share = territory_for(log, centre)
-  check("a repeat event leaves this cone one whole territory",
-    still ~= nil and hits == share,
-    string.format("%d territories in the ring; this cone's holds %d of %d",
-      #log.created, hits or 0, share))
+  -- nothing revealed when the first event landed), so the invariant is about THIS
+  -- cone: its own ground, and how many territories hold it. "How many" rather than
+  -- "one", because a cone big enough for two guards is cut in two (volcano-split.lua)
+  -- and this test draws its cone with `pairs` -- a fixed choice until the cut made it
+  -- a two-territory volcano on some runs and one on others.
+  local share = volcanoes:cone_chunks(centre, volcanoes:contenders_for(centre))
+  -- This cone's territories and how much of its share they hold between them.
+  local function mine()
+    local territories, held = 0, 0
+    for _, territory in ipairs(log.created) do
+      local mine_here = {}
+      for _, member in ipairs(territory:get_chunks()) do
+        mine_here[member.x .. "," .. member.y] = true
+      end
+      local hits = 0
+      for _, chunk in ipairs(share) do
+        if mine_here[chunk.x .. "," .. chunk.y] then hits = hits + 1 end
+      end
+      if hits > 0 then
+        territories = territories + 1
+        held = held + hits
+      end
+    end
+    return territories, held
+  end
+  local before_territories, before_held = mine()
+  check("the first pass claimed its ground", before_held > 0,
+    string.format("%d of %d chunks in %d territories", before_held, #share,
+      before_territories))
+  builder:on_chunk_generated{ x = cx, y = cy }
+  builder:on_chunk_generated{ x = cx, y = cy }
+  builder:on_chunk_generated{ x = cx + 1, y = cy }
+  local after_territories, after_held = mine()
+  check("a repeat event claims nothing more for it",
+    after_territories == before_territories and after_held == before_held,
+    string.format("%d territories / %d chunks, then %d / %d", before_territories,
+      before_held, after_territories, after_held))
 end
 
 print("every cone inside the generated area is claimed")
 do
   local log = { created = {} }
   local surface = fake_surface({ x = 0, y = 0 }, 30, log)
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   for dy = -24, 24 do for dx = -24, 24 do
     builder:on_chunk_generated{ x = dx, y = dy }
   end end
@@ -357,7 +335,7 @@ do
     local hostable = #share >= 16
     if revealed and hostable then
       expected = expected + 1
-      if builder.created[cone.id] == true then claimed = claimed + 1 end
+      if builder:decided(cone) then claimed = claimed + 1 end
     elseif revealed and #share > 0 then
       unhostable = unhostable + 1
     end
@@ -376,7 +354,7 @@ do
   -- Revealed, but only a small patch around the centre chunk: the patrol patrol path runs
   -- out of it, so the builder must decline and come back when the ground does.
   local surface, created = fake_surface({ x = cx, y = cy }, 1, log)
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   -- Every chunk of the revealed block is DELIVERED, not just its middle. The middle
   -- one is not always the cone's own -- on a fragment a neighbour wins the centre
   -- chunk -- and a cone is decided when a chunk of ITS OWN arrives, which is the rule
@@ -397,7 +375,7 @@ do
   -- Settled, guard or no guard. There is no second state to check any more: the
   -- marker is one boolean per region, and the failure modes it used to be able to
   -- hold ("no-patrol path", "no-body", "no-fit") were values nothing acted on.
-  check("it is still claimed, guard or no guard", builder.created[centre.id] == true)
+  check("it is still claimed, guard or no guard", builder:decided(centre))
 end
 
 print("the demolisher ladder is discovered and ordered by body length")
@@ -408,7 +386,7 @@ do
   -- order, and that a three-tier ladder hands over at the MEASURED thresholds --
   -- the discovery must not quietly re-tune them.
   local surface = fake_surface({ x = 0, y = 0 }, 1, { created = {} })
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   local ladder, tiers = Demolisher.discover()
   local lengths, names = {}, {}
   for index, prototype in ipairs(ladder) do
@@ -438,7 +416,7 @@ do
   -- which is a non-recoverable error and takes the map with it. The failure path was
   -- never exercised, which is why it survived a green gate.
   local surface = fake_surface({ x = 0, y = 0 }, 30, { created = {} })
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   local volcanoes = builder.volcanoes
   local ring = volcanoes:cones_near(0, 0, 10)
   local cone = nil
@@ -493,7 +471,7 @@ do
   -- take the game down. Forcing it here is the whole point.
   local created_log = { created = {} }
   local surface = fake_surface({ x = 0, y = 0 }, 30, created_log)
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   local volcanoes = builder.volcanoes
   local ring = volcanoes:cones_near(0, 0, 10)
   local cone = nil
@@ -515,18 +493,18 @@ do
     -- the FIT, not the path, so the patrol path is real.
     local real_for = Demolisher.demolisher_for
     Demolisher.demolisher_for = function() return nil end
-    -- Called the way on_chunk_generated calls it: `create(cone)`, with nothing else.
-    -- The arriving chunk and the candidate list used to be passed in, and are not any
-    -- more -- the owner test has already run by the time we get here, and the share
-    -- works out its own contenders. Passing them was harmless, because Lua ignores
-    -- extra arguments, and misleading, which is worse.
+    -- Direct create with no arriving chunk, to isolate the no-guard-fit branch the stub
+    -- above forces. on_chunk_generated passes a position, but that only decides which
+    -- slice of a SPLIT cone is still "unseen" -- and a cone that cannot carry a guard is
+    -- never cut (Split.plan refuses it before producing two slices), so the single-slice
+    -- path this hits is settled with one create call regardless of position.
     builder:create(cone)
     local logged = false
     for index = before + 1, #LOGGED do
       if tostring(LOGGED[index]):find("no guard placed", 1, true) then logged = true end
     end
     check("the claim is still made -- the volcano is real, the guard is not",
-      logged or builder.created[cone.id] == true)
+      logged or builder:decided(cone))
     -- The LOG LINE is the actual fix, not the assignment: it is nil-proof, so the
     -- branch can no longer end the map however its locals are set. What a test can
     -- pin is the outcome a playtest reads -- a volcano claimed, zero guards, and a
@@ -572,6 +550,336 @@ do
   end
 end
 
+------------------------------------------------------------------- the cut
+-- A volcano big enough for two guards is claimed as TWO territories: the claim cut
+-- in half through the cone's own centre, one guard per side, and the two pieces
+-- disjoint so neither can take ground from the other. These are the properties the
+-- e2e probe cannot see -- it reads the surface, not which cone made which slice --
+-- and they are cheap to get wrong, because a cut that shares chunks between two
+-- territories is silent until one of them is built second.
+print("a big cone is claimed as two territories, one guard each")
+do
+  local Split = require("volcano-split")
+  local found, split, tried = nil, nil, 0
+  for _, cone in pairs(existing) do
+    tried = tried + 1
+    local contenders = volcanoes:contenders_for(cone)
+    local slices = Split.slices(volcanoes, cone, volcanoes:cone_chunks(cone, contenders), contenders)
+    if #slices == 2 then split = { cone = cone, slices = slices } break end
+  end
+  check("this map has a cone that carries two guards", split ~= nil,
+    tried .. " cones offered, none split")
+  if split then
+    local small, large = split.slices[1], split.slices[2]
+    check("the two guards are one size step apart",
+      large.class - small.class == 1,
+      string.format("rungs %d and %d", small.class, large.class))
+    check("the small slice is the smaller one",
+      small.fraction < large.fraction,
+      string.format("%.2f against %.2f of the claim", small.fraction, large.fraction))
+    -- The CLAMP: the carved slice is a quarter to a half of the circle, so its loop is
+    -- a walkable shape. The other side is the remainder (a half-disc cut leaves a
+    -- quarter and three quarters, and both pieces cannot be halves at once without a
+    -- third piece between them).
+    check("the carved slice is between a quarter and a half of the volcano",
+      small.fraction >= 0.25 and small.fraction <= 0.5,
+      string.format("%.0f degrees of %.0f", small.fraction * 360, large.fraction * 360))
+    -- The outline's corners: a leg meets the arc at a right angle, and a body cannot
+    -- turn 90 degrees in a tile, so the corners are ROUNDED. The sharp polygon this
+    -- replaced turned 90 degrees in one step.
+    local PatrolPath = require("volcano-patrol-path")
+    local worst_turn = 0
+    for _, slice in ipairs(split.slices) do
+      local path = slice.patrol_path
+      for index = 1, #path do
+        local a = path[index]
+        local b = path[(index % #path) + 1]
+        local before = path[((index - 2) % #path) + 1]
+        local ax, ay = a.x - before.x, a.y - before.y
+        local bx, by = b.x - a.x, b.y - a.y
+        local la = math.sqrt(ax * ax + ay * ay)
+        local lb = math.sqrt(bx * bx + by * by)
+        if la > 1e-6 and lb > 1e-6 then
+          local dot = (ax * bx + ay * by) / (la * lb)
+          -- 180/pi, and NOT math.acos(0) * 2, which is pi: a 90 degree corner came out
+          -- as 4.9 that way and the check below was satisfied by anything.
+          local turn = math.acos(math.max(-1, math.min(1, dot))) * 180 / math.pi
+          worst_turn = math.max(worst_turn, turn)
+        end
+      end
+    end
+    -- The two joins ARE corners, and they are meant to be: the guard rounds them itself
+    -- (its patrolling_turn_radius is a whole radian per tile, so a right angle costs it
+    -- a tile and a half) and the arcs stop a chunk and a half short of the cuts, so it
+    -- has open ground to do it in. What must not happen is a SPIKE -- two edges pointing
+    -- straight back at each other, which is a fold in the outline rather than a corner,
+    -- and which is what a duplicated arc was.
+    check("no corner of either outline folds back on itself",
+      worst_turn < 170, string.format("%.0f degrees at the sharpest", worst_turn))
+    -- Zero-length edges: none may survive. The walk back onto the claim can land a
+    -- point exactly on its neighbour (membership is chunk-coarse and the walk's
+    -- terminal step is the neighbour itself), and the body layout seeds its heading
+    -- along the FIRST edge and refuses a body with none -- so one repeated point means
+    -- a slice with a class and no demolisher, which the e2e only sees as a missing
+    -- guard. drop_repeats is the fix; this pins the contract it enforces, at the same
+    -- boundary the engine reads (the closed loop, wrap-around edge included).
+    local repeats = 0
+    for _, slice in ipairs(split.slices) do
+      local path = slice.patrol_path
+      for index = 1, #path do
+        local a, b = path[index], path[(index % #path) + 1]
+        if math.abs(a.x - b.x) < 1e-6 and math.abs(a.y - b.y) < 1e-6 then
+          repeats = repeats + 1
+        end
+      end
+    end
+    check("no loop has a zero-length edge", repeats == 0,
+      repeats .. " consecutive identical points")
+    -- The loop goes ROUND ONCE: the bearing from the cone's centre only ever turns one
+    -- way along the arc, so the signed changes never flip -- except once at each of the
+    -- two legs, which is what a closed ring does. More than two is a backtrack, and the
+    -- one that was here walked the outer arc out, the rim in, and the outer arc AGAIN,
+    -- with both legs on the same end of it: every point was on claimed ground, the loop
+    -- fitted, the corner angle was fine, and the guard U-turned in play.
+    local flips = 0
+    for _, slice in ipairs(split.slices) do
+      -- Per loop, and counted as a maximum over the two: carrying the bearing across
+      -- from one loop to the other would count the jump between two unrelated loops as a
+      -- turn, and a ring turns once at each of ITS two legs, so two each.
+      local direction, previous = 0, nil
+      local this_loop = 0
+      for index = 1, #slice.patrol_path do
+        local point = slice.patrol_path[index]
+        local bearing = math.atan2(point.y - split.cone.y, point.x - split.cone.x)
+        if previous then
+          local step = bearing - previous
+          while step > math.pi do step = step - 2 * math.pi end
+          while step < -math.pi do step = step + 2 * math.pi end
+          if math.abs(step) > 0.02 then
+            if direction ~= 0 and (step > 0) ~= (direction > 0) then
+              this_loop = this_loop + 1
+            end
+            direction = step
+          end
+        end
+        previous = bearing
+      end
+      flips = math.max(flips, this_loop)
+    end
+    check("neither loop walks the same ground twice", flips <= 2,
+      string.format("the worst loop turns back %d times going round, at its %d legs", flips,
+        2))
+    -- Two guards that walk within a chunk of one another bump, and the playtest asks
+    -- for it twice ("it must not overlap or get too close to the neighbour's patrol
+    -- path"). The arcs are a chunk clear of the cut on each side and the plan refuses a
+    -- cut that cannot hold it, so this holds by construction -- and a point the walk
+    -- moved is the one way it can be broken.
+    local closest = math.huge
+    for _, a in ipairs(small.patrol_path) do
+      for _, b in ipairs(large.patrol_path) do
+        local dx, dy = a.x - b.x, a.y - b.y
+        closest = math.min(closest, math.sqrt(dx * dx + dy * dy))
+      end
+    end
+    check("the two guards never walk within a chunk of each other", closest >= 32,
+      string.format("%.0f tiles at the closest", closest))
+    -- And the arc is the volcano's OWN patrol radius over the wedge's directions, not
+    -- a circle of its own: a slice traces the edge the whole volcano traces.
+    local reach = PatrolPath.ground_radius(volcanoes, split.cone, Split.angle_for(split.cone),
+      PatrolPath.rivals_of(split.cone, volcanoes:contenders_for(split.cone)))
+    local traced = 0
+    for _, point in ipairs(small.patrol_path) do
+      traced = math.max(traced, math.sqrt((point.x - split.cone.x) ^ 2
+        + (point.y - split.cone.y) ^ 2))
+    end
+    check("the arc reaches the volcano's own ground edge",
+      traced >= reach * 0.9, string.format("%.0f of %.0f tiles", traced, reach))
+    -- The claim is cut in two, so the pieces must be disjoint AND add back up to
+    -- the whole: overlapping chunks would make create_territory's "strip from other
+    -- territories" decide the answer by build order.
+    local key = {}
+    for _, chunk in ipairs(small.share) do
+      local k = chunk.x .. "," .. chunk.y
+      if key[k] then check("the pieces are disjoint", false, k .. " is in both") end
+      key[k] = "small"
+    end
+    local overlaps, total = 0, 0
+    for _, chunk in ipairs(large.share) do
+      local k = chunk.x .. "," .. chunk.y
+      if key[k] == "small" then overlaps = overlaps + 1 end
+      key[k] = true
+      total = total + 1
+    end
+    local share = volcanoes:cone_chunks(split.cone, volcanoes:contenders_for(split.cone))
+    check("the two pieces are disjoint", overlaps == 0, overlaps .. " shared chunks")
+    -- Between them the two pieces are the WHOLE claim: nothing is dropped in the middle.
+    -- An earlier version left a caldera unclaimed there, which is a hole in a volcano
+    -- and a difference between the claim and the mirror's chunk list that the e2e could
+    -- only check by re-deriving the cut. The loops are rings because of where they WALK,
+    -- not because of what is claimed.
+    check("and between them they are the whole claim",
+      total + #small.share == #share,
+      total .. " + " .. #small.share .. " against " .. #share)
+    -- Every patrol point stands on its OWN territory's ground: a loop that crossed
+    -- the cut would put a guard on the other guard's volcano, which no test has
+    -- caught so far and the game would show as two animals on one disc.
+    local off, points = 0, 0
+    for _, slice in ipairs(split.slices) do
+      for _, point in ipairs(slice.patrol_path) do
+        points = points + 1
+        if not Split.holds(slice, math.floor(point.x / 32), math.floor(point.y / 32)) then
+          off = off + 1
+        end
+      end
+    end
+    check("every patrol point of both loops is on its own slice", off == 0,
+      off .. " of " .. points .. " points off")
+    -- And the guards are placed, one per territory, whole.
+    local log = { created = {} }
+    local centre = split.cone
+    local surface = fake_surface({
+      x = math.floor(centre.x / 32), y = math.floor(centre.y / 32) }, 24, log)
+    local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
+    for _, chunk in ipairs(share) do
+      if surface.is_chunk_generated(chunk) then
+        builder:on_chunk_generated{ x = chunk.x, y = chunk.y }
+      end
+    end
+    check("the cone is settled once BOTH of its territories exist", builder:decided(centre))
+    -- One guard per slice, each the size its own ground asked for. Read off the
+    -- TERRITORY and not off the surface: one chunk event decides a whole ring of
+    -- cones, so "every unit on this surface" says nothing about this volcano.
+    local ladder = Demolisher.discover()
+    local wrong = {}
+    for index, slice in ipairs(split.slices) do
+      local wanted = ladder[slice.class].name
+      local territory = territory_for(log, slice)
+      local got = territory and territory.units[1]
+      if got ~= wanted then
+        wrong[#wrong + 1] = string.format("slice %d wanted %s, got %s", index, wanted,
+          tostring(got))
+      end
+    end
+    check("one guard per slice, each the size its own ground asked for", #wrong == 0,
+      table.concat(wrong, "; "))
+  end
+end
+
+print("the cut is the same whichever slice is built first")
+do
+  -- The engine gives a chunk to ONE territory and takes it from whoever held it, so
+  -- an overlap between the two pieces would not fail -- it would be resolved by BUILD
+  -- ORDER, silently, and two loads of the same map would disagree. That is the whole
+  -- question this asks, and it is asked by building the cone twice with the pieces
+  -- delivered in opposite orders and comparing the result chunk by chunk.
+  local Split = require("volcano-split")
+  local split = nil
+  for _, cone in pairs(existing) do
+    local contenders = volcanoes:contenders_for(cone)
+    local slices = Split.slices(volcanoes, cone, volcanoes:cone_chunks(cone, contenders), contenders)
+    if #slices == 2 then split = { cone = cone, slices = slices } break end
+  end
+  check("this map has a cone that carries two guards", split ~= nil, "none split")
+  if split then
+    -- One cone, two orders: `forward` delivers a chunk of the small piece first,
+    -- `backward` one of the large piece first. Each returns, per piece, the set of
+    -- chunks its territory ended up holding -- and counts a chunk held twice, which
+    -- is what an overlap looks like from the outside.
+    local function build(order)
+      local log = { created = {} }
+      local first = split.slices[order == 1 and 1 or 2].share[1]
+      local surface = fake_surface({ x = first.x, y = first.y }, 40, log)
+      local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
+      for _, slice in ipairs(split.slices) do
+        local chunk = slice.share[order == 1 and 1 or #slice.share]
+        builder:create(split.cone, chunk)
+      end
+      local held, doubled = {}, 0
+      for _, territory in ipairs(log.created) do
+        for _, member in ipairs(territory:get_chunks()) do
+          local key = member.x .. "," .. member.y
+          if held[key] then doubled = doubled + 1 end
+          held[key] = true
+        end
+      end
+      local pieces = {}
+      for index, slice in ipairs(split.slices) do
+        local territory = territory_for(log, slice)
+        local set = {}
+        for _, member in ipairs(territory:get_chunks()) do
+          set[member.x .. "," .. member.y] = true
+        end
+        pieces[index] = set
+      end
+      return held, doubled, pieces
+    end
+    local forward, doubled_forward, pieces_forward = build(1)
+    local backward, doubled_backward, pieces_backward = build(2)
+    -- `#` on a set of string keys is 0, so the coverage is counted, not measured.
+    local function count(set) local n = 0 for _ in pairs(set) do n = n + 1 end return n end
+    check("no chunk is in both territories, in either order",
+      doubled_forward == 0 and doubled_backward == 0,
+      string.format("%d then %d chunks held twice", doubled_forward, doubled_backward))
+    local share = volcanoes:cone_chunks(split.cone, volcanoes:contenders_for(split.cone))
+    check("and no chunk of the claim is unclaimed, in either order",
+      count(forward) == #share and count(backward) == #share,
+      string.format("%d and %d of %d chunks held", count(forward), count(backward), #share))
+    -- The comparison that matters: the same chunk in the same PIECE, whichever piece
+    -- the builder reached first.
+    local different = {}
+    for index = 1, 2 do
+      for key in pairs(pieces_forward[index]) do
+        if not pieces_backward[index][key] then
+          different[#different + 1] = string.format("piece %d: %s", index, key)
+        end
+      end
+    end
+    check("both orders produce the same territories", #different == 0,
+      #different .. " chunks moved between the pieces: "
+        .. table.concat(different, ", "))
+  end
+end
+
+print("a slice with no revealed ground of its own is claimed later, not at once")
+do
+  local Split = require("volcano-split")
+  -- The engine wants one GENERATED chunk in every list it is given, so a cut claim
+  -- is two of those preconditions, and the chunk that woke the mod satisfies one at
+  -- most. The other waits for the next event that carries one of ITS chunks -- and
+  -- nothing about the cone changes in between, so the second territory is identical
+  -- to what a whole claim would have produced.
+  local found, split = nil, nil
+  for _, cone in pairs(existing) do
+    local contenders = volcanoes:contenders_for(cone)
+    local slices = Split.slices(volcanoes, cone, volcanoes:cone_chunks(cone, contenders), contenders)
+    if #slices == 2 then split = { cone = cone, slices = slices } found = cone break end
+  end
+  if split then
+    local share = volcanoes:cone_chunks(found, volcanoes:contenders_for(found))
+    -- Reveal only what the SMALL slice has, which is the frontier case: the big side
+    -- of the cut has nothing revealed at all.
+    local small = split.slices[1]
+    local first = small.share[1]
+    local log = { created = {} }
+    local surface = fake_surface({ x = first.x, y = first.y }, 0, log)
+    local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
+    builder:on_chunk_generated{ x = first.x, y = first.y }
+    check("one of the two territories exists and the cone is not settled yet",
+      #log.created == 1 and not builder:decided(found),
+      #log.created .. " territories, decided=" .. tostring(builder:decided(found)))
+    -- Now reveal the other side and deliver one of its chunks.
+    local other = split.slices[2].share[1]
+    surface = fake_surface({ x = other.x, y = other.y }, 0, log)
+    builder = Builder.new(surface, { created = builder.created,
+      map_gen_settings = surface.map_gen_settings })
+    builder:on_chunk_generated{ x = other.x, y = other.y }
+    check("the second slice is claimed when a chunk of its own arrives",
+      builder:decided(found), #log.created .. " territories in total")
+  else
+    check("this map has a cone that carries two guards", false, "none split")
+  end
+end
+
 print("a cone nobody has walked to is left alone, not taken for lost")
 do
   -- The engine's precondition: create_territory refuses a list with no generated
@@ -589,7 +897,7 @@ do
   local log = { created = {} }
   -- A surface generated somewhere else entirely, so no chunk of any cone here exists.
   local surface = fake_surface({ x = 100000, y = 100000 }, 1, log)
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   builder:on_chunk_generated{ x = 100000, y = 100000 }
 
   -- This builder's OWN decisions, not the shared fixture: the surface is generated
@@ -603,7 +911,7 @@ do
   check("a cone was seen out there and has no generated chunk of its own",
     cone ~= nil)
   if cone then
-    check("it is not settled", not builder.created[cone.id] == true)
+    check("it is not settled", not builder:decided(cone))
 
     -- The question this test exists for: a cone the player has not reached must
     -- not be treated as lost, withdrawn, or invented. There is no "gone" answer to
@@ -612,7 +920,7 @@ do
     -- that way until one of its chunks is generated.
     check("nothing was created for it", #log.created == 0,
       #log.created .. " territories")
-    check("it is still not settled", builder.created[cone.id] ~= true)
+    check("it is still not settled", not builder:decided(cone))
   end
 end
 
@@ -632,7 +940,7 @@ print("the owner is the same from the shipped ring as from a much wider one")
 do
   local log = { created = {} }
   local surface = fake_surface({ x = 0, y = 0 }, 30, log)
-  local builder = Builder.new(surface, { created = {} })
+  local builder = Builder.new(surface, { created = {}, map_gen_settings = surface.map_gen_settings })
   local volcanoes = builder.volcanoes
   local checked, disagreed, owned, none = 0, 0, 0, 0
   for dy = -24, 24, 3 do for dx = -24, 24, 3 do

@@ -59,31 +59,21 @@ baseline must be a mod directory that does not CONTAIN the mod; every tool here 
 one per side and `live_server.py` had to be fixed for it. Gate: `tests/noise_budget.py`
 against `tests/noise_budget.json` (~10 s, both sides).
 
-**The mod's own expressions are already clean against every documented rule.** Scanning
-all 1260 compiled expressions for the anti-patterns in the API docs' performance tips:
-zero `1 + 2 + x` constant-first misses, zero `x + 0`, `x - 0`, `0 - x`, `x * 1`, `x / 1`,
-`x * (-1)`, `x ^ 2`, `x ^ 0`, `x ^ 1`. The only hits in the whole program are in VANILLA
-expressions the merged map pulls into the per-tile programs: 6 x `size ^ 0.5` in
-`gleba_*_richness` (the engine turns those into `sqrt` anyway) and 18 x
-`c * (a + b)` in `vulcanus_*` (the distributable case from the docs). Those are the
+**The mod's own expressions are already clean**: zero of the documented
+anti-patterns (`1 + 2 + x`, `x + 0`, `x * 1`, `x ^ 2`, ...) across all 1260
+compiled expressions; the only hits are VANILLA expressions the merged map pulls
+in (6 x `size ^ 0.5` in gleba richness, 18 x `c * (a + b)` in vulcanus) -- the
 upstream-contribution candidates, not mod work.
 
-**What the 3.5x is, priced by ablation.** The masks are the design's cost and each one
-is already at the floor: a mask is one `if()` per (prototype, boundary), and the
-expensive half -- the condition -- is one shared operation (25 conditions carry 339 mask
-`if()`s in Entity, 18 carry 156 in Tile). Cheaper alternative spellings cost the same,
-and the whole missed-deduplication total is 0.5% of the program even after unifying
-`min`/`max` with `if`, `clamp` with `min`/`max`, `a + a` with `2 * a`, `if(c, e, e)`
-with `e`, and a constant factor with its distributed form. What the mod really adds is
-the other planet's field generators, and because `if()` has no short-circuit those run
-for every tile of the whole map: being inside a lerp is no different from being outside
-it. Per-field prices (no overlap): `eon_gleba_blend` (the crossfade, a smoothstep)
-0.1%, `eon_gleba_moisture_vanilla` 0.1%, `eon_aquilo_persistance` (5 octaves) 1.0%,
-`eon_aquilo_macro` (2+1) 0.6%, `eon_gleba_elevation_vanilla` 2.1%, `eon_aquilo_detail`
-(5 octaves, variable persistence) 2.0%, and `mask_gleba_shared` (Gleba's formula
-re-registered for 14 base decoratives) 1.1% of the real program. Sharing decides how
-many times an expression is COMPILED; cost is decided by how often it is EVALUATED --
-so "the mask is only 0/1" and "the field is shared" are both the wrong question.
+**What the 3.5x is, priced by ablation**: the masks are one shared `if()`
+condition per (prototype, boundary), already at the floor; the real add is the
+other planets' field generators, which run for EVERY tile (no short-circuit in
+`if()`). Per-field prices (no overlap): `eon_gleba_blend` 0.1%, `eon_gleba_
+moisture_vanilla` 0.1%, `eon_aquilo_persistance` 1.0%, `eon_aquilo_macro` 0.6%,
+`eon_gleba_elevation_vanilla` 2.1%, `eon_aquilo_detail` 2.0%, `mask_gleba_shared`
+1.1% of the real program. Sharing decides how many times an expression is
+COMPILED; cost is how often it is EVALUATED -- both "the mask is only 0/1" and
+"the field is shared" are the wrong question.
 
 Two rules for anyone touching this area: a new expression is a per-tile cost for the
 whole map, so it belongs in `tests/noise_budget.py`'s budget before it lands; and a
@@ -446,240 +436,51 @@ standalone Lua mirror of the engine's `spot_noise` cone placement, wired through
 `volcano-territory.lua` + `control.lua`. Setting `eon-volcano-territory`:
 `runtime` (default) or `expression` (the old noise-expression index). Only one may
 claim chunks — `create_territory` strips the chunks it takes from existing
-territories.
+territories. The design narrative and measured history behind everything in this
+section: `features/lua-territory.feature`, "Design appendix".
 
-**What the mirror answers, and why it is small.** EoN's cones come from two
-`spot_noise` systems with `candidate_spot_count = 1`, so per region there is at
-most one cone: its centre is the FIRST dart-throw-accepted candidate of that
-region's taus88 stream (integer RNG — exact, no noise), and its effective width
-is `min(maximum_spot_basement_radius, spot_radius_expression)` = a constant times
-`eon_volcano_size_dist(centre)` (ONE 3-octave multioctave per cone). Everything
-else the engine does there is the identity at count = 1 or is not needed to place
-chunks. **Do not port the biome noise, the starting-spot weights, the tile
-ranges or the spot-selection phases** — the game has already rendered the answer,
-so the wiring asks the game one question per cone instead (the existence gate).
+Contracts that must hold (each probe-verified; the narrative says why, and what
+failed before):
 
-**Existence is COMPUTED: the engine's own spot density** (feature AC-1).
-`noise-mirror/density.lua` ports the `density_expression` of `eon_volcano_spots_at`
-(`volcano_area / volcanism^2 * eon_volcano_spawn_gate` — 32 nodes behind it, three
-primitives, and the mirror already had `multioctave_noise`). A cone exists where
-that is positive, so the whole "is this a volcano" question is a pure function of
-position again.
-
-This is the requirement, and the reason is mechanical: **chunks are generated one
-at a time, so no per-chunk or per-tile test can see a whole volcano.** Every
-tile-based version of the gate was therefore a function of what the player had
-revealed, and that is where the whole family of bugs came from — a claim made on
-four chunks of evidence and then wrong (4 of 22 volcanic), a real volcano with no
-claim because its rim was revealed first, a claim that had to be retracted, an
-audit invented to catch up, an evidence floor, a density *fraction*... **The
-shipped path asks the game about the map nowhere**: no `get_tile` and no
-`is_chunk_generated` in `volcano-territory.lua`. Both went the same way. A cone is
-decided when a chunk of ITS OWN arrives, and the chunk that woke the mod is
-generated by definition, so the one engine precondition (`create_territory` wants
-a generated chunk in the list) is satisfied by construction rather than by asking.
-That is the general form of the rule: a question about the world is a question the
-mirror answers, and a question about what the engine has already told us does not
-need asking at all.
-
-Gates for the port:
-- `tests/density_parity.py` — against the SHIPPED expression at the candidate
-  centres the gate is actually asked at (a grid sample said 100% while the game
-  disagreed on whole volcanoes, so the sample points matter): **100% sign
-  agreement over 1352 centres, worst relative error 3.8e-4**. The gate is a sign
-  test, so sign agreement is the correctness criterion and tracking is the accuracy
-  one.
-- Cross-checked against the engine's own spot selection through the Rust oracle:
-  **240 of 240 region decisions agree** in a probe window. So a territory standing
-  on non-volcano ground is the ENGINE placing a cone over ocean or ice, not the
-  mirror inventing one — a playtest question, not a contract.
-
-**The tile gate that this replaced, for the record.** It asked whether 5 of the 9
-chunks around a cone's centre were volcanic. That was strictly better than one
-centre tile — a single tile calls a two-chunk lava patch on a shoreline a volcano,
-and such a cone claimed 17 chunks of deepwater with a demolisher patrolling the sea
-(measured live, seed 3526581861 at 200%: its centre chunk was volcanic, only 7 of
-its 17 claimed chunks were). But it was still a tile witness, so it was a function
-of what the player had revealed, and everything downstream had to be built to
-survive that. The spot density answers the same question with no witness at all.
-
-**A claim needs no evidence beyond the map** (feature AC-2, AC-3). This was the
-longest wrong turn of the session and is kept as a warning: for a while a claim was
-gated on "at least half the REVEALED share is volcano, and at least nine chunks are
-revealed", with the same test run backwards to retract. Both halves existed because
-existence came from tiles, and a tile witness is a function of what the player has
-walked over -- a 22-chunk disc was claimed on the strength of its first four
-rendered chunks (all volcanic: a perfect score and no information), the other
-eighteen then revealed as beach, and the same logic had to be undone on retraction.
-With existence computed from the spot density, the claim is the cone's disc and
-nothing else, and every one of those mechanisms became dead code.
-
-
-**Membership is geometric — no per-chunk tile read at all.** The claim is the
-cone's core disc, `CORE_FRACTION` of its width, tested at each chunk's CENTRE.
-Three reasons, all measured:
-- A point sample of a 32x32 chunk is a bad description of it, and WHICH point
-  matters: at the engine's top-left corner 100% of the chunks out to `d/width`
-  0.40 read volcanic, at the chunk centre only 75% of the 0.35–0.40 band does.
-  The tiles sit ~16px NW of the cone field, so a corner sample reads the FIELD,
-  not the ground. The whole `_at16` noise family existed to compensate for that
-  and is deleted.
-- The claim radius is DENSITY-AWARE, not one constant: `core_fraction_for` gives
-  0.45 at 1x volcanism down to 0.30 at 6x. One constant does not fit every density
-  (measured purity of the claimed disc: 99% at 200% and 67% at 600% with 0.45, 84%
-  at 600% with 0.40) — not because the volcano is smaller, but because at 6x the
-  discs interleave three deep with each other and with the ground the other cones
-  leave behind.
-- Sampling made the claim depend on GENERATION ORDER (the same volcano got a
-  different chunk list depending on which chunks were rendered when the cone was
-  decided, and later chunks needed a correction pass). A geometric list is a
-  pure function of the map: the same territory everywhere, every load, either
-  order. `CORE_FRACTION` (0.40) is the only knob, and it is a measurement: 93% of
-  the claimed disc is genuine volcano ground by the centre test, 0.35 is the last
-  100% band.
-- The claimed AREA is then the disc, not "a chunk whose corner is in the disc" —
-  which is what left the claim sitting about half a chunk (+16/+16px) down-right
-  of the volcano. No field shift can fix a quantisation bias, and no sampling is
-  the way to avoid having one.
-
-**How a chunk finds its cone: one question, asked of the mirror.** `Volcanoes:owner_at(x, y)`
-returns the **nearest centre** among the cones whose ground covers the chunk, measured
-at the displaced point because that is where the engine reads the field. The candidate
-ring is assembled inside that call and is memoised per region, so the whole per-chunk
-cost is a hash hit, ONE wobble evaluation and a distance test per cone — **12.7
-microseconds** — and nothing about the answer is stored.
-
-- The ring is never inspected by the runtime: every caller passes it straight to another
-  method. It is an argument, not an answer, which is why `owner_at` hides it and the
-  Builder does not know a radius. The margin is ZERO and was 64 for most of this file's
-  life, making no difference: the ring's extent comes from `basement` (a cone covering a
-  chunk has its centre within basement + 16 tiles, inside one ring of regions), and over
-  1,681 positions at 1x and 6x volcanism, margins 0 and 64 return identical rings at
-  every one. `Volcanoes.rings` memoises the ring per (region, margin), which is a cache
-  of the candidate LIST and cannot go stale, because existence is a pure function of
-  position.
-- The ring's cones are tested for coverage with a **plain distance test before any
-  wobble**: the displacement is bounded (36.7 tiles measured over 3M samples on three
-  seeds), so a point further than `radius + 40` from a centre cannot be pulled inside
-  the disc however the noise behaves. Without it the frontier cost 87 us a chunk — one
-  wobble evaluation per ring cone, ~25 of them — instead of 3 us.
-- A NEIGHBOURHOOD INDEX was built to remove that search and then deleted, because
-  keeping it meant enumerating every discovered cone's share to know which regions to
-  register: 1.76 ms a cone, in order to save 9 us a chunk, over a reveal with ~18
-  chunks per cone. It also brought region registration, tombstones, a merge path, and
-  the invariant that a region must never be written before it has been asked about —
-  150 lines and four questions (what is a group, when may it be dropped, how do two
-  groups merge, may a region hold a cone we never asked about) for a cache that was
-  losing on its own terms. Do not rebuild it.
-
-**When a cone is decided** — when a chunk of **its own** is generated. The chunk that
-woke the mod IS generated (that is the only way the handler is reached), so if it is
-one of the cone's, `create_territory`'s "at least one generated chunk" is satisfied by
-construction; if it is not, the answer is "not yet". This replaced walking the whole
-share calling `surface.is_chunk_generated` on every chunk event for every waiting
-cone: 0.48 µs a call, 241,840 calls over a 1681-chunk reveal at 100% volcanism,
-611,762 at 600%. **The claim path now asks the engine about generation nowhere.**
-Waiting for the whole DISC is what left big volcanoes half-guarded (live: 387
-candidates, 270 generated, no territory); `create_territory` ACCEPTS ungenerated
-chunks and they join on arrival, so one call with the complete list is final.
-
-**The created-set is a marker table**: `true` claimed, `"empty"` every chunk of its
-disc belongs to a neighbour, `"unseen"` none of its own chunks has arrived yet (asked
-again by the next chunk event that carries one, and by nothing else). It is the ONLY
-persistent state, and correctness does not depend on the index: a cone that turns up
-again is recognised by its marker and skipped, so a stale or wrong index can cost
-work but cannot produce a wrong claim.
-
-**The split between overlapping cones is gate-free.** MAX-of-cones (smallest
-`d/width`) over the cones the map *would* have, gate or not. A gate answers "does
-this cone exist" and every cone answers at a different time, so a split computed
-against the decided cones MOVES as more of them resolve: two volcanoes trading
-chunks, and a territory that no longer matches the mirror that built it (at 600%
-volcanism: 199 chunks in a territory the mirror did not predict, 38 unguarded).
-The gate now only decides who gets to CREATE a territory; a cone that turns out
-not to exist leaves a small unclaimed lens, which `Builder:audit` refills from the
-surviving neighbour's disc.
-
-**The withdrawal only concludes what it can see.** `territory_of` returns
-(territory, answerable): `get_territory_for_chunk` answers nil for an UNGENERATED
-chunk, and a cone whose centre is still unrevealed has no visible territory, so
-"no territory" and "cannot see one" must not be confused. Two bugs came out of that
-distinction: the audit "rebuilding" healthy territories it could not see, and the
-withdrawal marking a cone dead without destroying the territory it pointed at,
-leaving a live territory with a marker pointing at nothing.
-
-`cone_by_id` takes a `raw` flag for the same reason: the rejected cone's GEOMETRY
-(its centre and disc) is still worth having, and the gated lookup returns nil for
-exactly those.
-
-**Priority, and the audit that used to defend it, is gone.** A volcano territory
-used to be re-asserted every 60 s: it rebuilt a territory the game destroyed with a
-deleted chunk, and refilled holes inside a created cone's disc. Both jobs rested on
-premises that no longer hold. Rebuilding a deleted territory is a dev or script
-action, and the only other case was a save from a build with a different claim
-shape — migration, and 0.1.13 is unreleased. Refilling holes was not a no-op but
-actively wrong: ownership between overlapping cones is decided UP FRONT and the
-claims are disjoint (`overlapping cones yield disjoint chunk sets`), and the fill
-tested only CLAIMED neighbours, so it took ground from a cone that had not claimed
-yet and handed it back when that cone did. Measured, it re-claimed 5 chunks at
-600%. The claim is now correct by construction and nothing re-asserts it.
-
-**Patrol path and units are ours** (feature AC-7..AC-12). `create_territory{chunks, patrol_path}` takes
-a path, so the mirror builds one: a ring inside the claimed disc, 32 points (16
-made the corners visible), radii 0.78 → 0.58 → 0.38 of the core radius until a full
-loop survives, clipped to the cone's own chunks (a split volcano must not patrol
-across the border into its neighbour's ground) and skipping water.
-
-The demolisher goes in with `create_segmented_unit` in the SAME pass that creates
-the territory, with `body_nodes` = the patrol path resampled at one tile, so the
-WHOLE animal exists at once, lying along the route it is about to walk — the
-default spawn is the head only, and the body grows behind it as it crawls. The
-node count is the prototype's own (`entity_prototypes[name].segment_engine.segments`,
-≤63) and it fills `body_nodes`, then `extended = true`, then a bare position.
-ONE unit per territory (two share the single patrol path and walk into each other,
-observed live), sized by `Volcanoes:size_fraction(cone)` (the cone's width over the
-largest basement, NOT `eon_volcano_size_dist`: the two spot systems differ only by
-`size_mult`, so at size_dist 1.0 a 318px cone and a 530px cone both read as "big" —
-measured 0/4/14 by size_dist versus 2/9/7 by width). A territory below 10 chunks is
-a rim sliver and gets no unit.
-
-Placement CAN fail even so, and the reason is timing, not effort: the claim lands
-when the first volcanic chunk of a cone is revealed, which is often a single rim
-chunk of beach with nothing standable on it. So the unit is placed on the next
-chunk event that brings ground (`place_pending_units`), with the audit as backstop.
-The same reasoning applies to the claim itself: an `"unseen"` cone is retried by
-the next chunk event that carries one of its own chunks, so nothing depends on
-event timing.
-
-**The audit, the priority pass and the lens refill are all gone**, and so is the
-60 s re-assertion. Each existed because the split was once computed against cones
-that had not resolved yet, so a claim had to be re-asserted, holes refilled and
-lenses re-attributed. Existence is computed (the density is a pure function of
-position), the split is settled up front from geometry, and a placed cone is
-recognised by its marker — so there is nothing left to re-assert.
-
-**The load path is empty, on purpose.** `on_load` may not touch `storage` (it is
-CRC-checked and a write aborts the load) and has no `game` object at all, so all it
-does is drop the cached builder. There is no catch-up, no `caught_up` flag and no
-load-time scan of the generated chunks: `on_chunk_generated` is the only thing that
-feeds the builder, and a save that already has its chunks generated already had its
-events. The scan existed for saves explored before this path existed, and 0.1.13 is
-unreleased, so it was migration with nothing to migrate.
-
-It was, however, holding the GATE's timing in place, and that is the part worth
-knowing if it ever comes back: the e2e probe measured on the first tick, and the
-scan claimed inside the mod's own `on_init`, so by then the territories existed.
-Without it, the events for everything generated in `on_init` are delivered in the gap
-AFTER that handler returns, and the probe measured an empty map -- no territories at
-all, then three after its own delete-and-regenerate step, failing every ordering
-assertion in between. The probe now waits four ticks (`MEASURE_AFTER_TICKS`; a
-headless server with no players advances at ~0.25 ticks/s, so that is ~12 s per
-run). That cost is the price of the deletion, paid in the harness where it belongs:
-the game itself never paid it.
-
-**Pruned on purpose: the spot-deployment warp** (`eon_detail_noise_at` on the
-query, up to ~25 tiles). Measured cost of dropping it (`tests/spot_mirror_parity.py`):
-0.8–3% of chunks change owner, always within one chunk of a cone's rim.
+- **The mirror answers and only that**: cone centres (the taus88 integer stream —
+  exact, no noise) and widths (`eon_volcano_size_dist`, one 3-octave multioctave
+  per cone); existence is COMPUTED from the engine's spot density (feature AC-1).
+  Do not port the biome noise, the starting-spot weights, the tile ranges or the
+  spot-selection phases. It asks the game about the map NOWHERE; the shipped path
+  has no `get_tile`, no `is_chunk_generated`, no per-chunk tile read.
+- **Decisions**: a cone is decided when a chunk of ITS OWN arrives (that chunk is
+  generated by definition, satisfying create_territory's one precondition); the
+  claim is the mirror's chunk list, one `create_territory` per slice of the cut;
+  markers persist (`true` / `"empty"` / `"unseen"` / per-slice table) and are the
+  ONLY persistent state — correctness does not depend on them (a stale index costs
+  work, never a wrong claim). The load path is empty on purpose.
+- **The short-circuit**: `on_chunk_generated` asks `get_territory_for_chunk` first
+  and skips when a territory holds the chunk — safe because the surface here only
+  holds territories the mod created and a created territory always carries the
+  marker, so a non-nil answer can only mean "already claimed". The marker is the
+  memory the surface cannot hold: unseen/empty cones, and territories removed via
+  `destroy` / `delete_chunk` / `clear_territory_for_chunks` / map reset. Conquest
+  needs no marker: probe-verified, a territory outlives its last demolisher
+  (valid, still answers, regenerates — the engine never auto-destroys an
+  unguarded territory, it just stops showing it).
+- **Ownership**: `volcano-patrol-path.lua` owns every patrol loop (whole-claim
+  circle, wedge outer arc, rim) and the shared primitives (`ground_radius`,
+  `edge_radius`, `set_for`, `rivals_of`, `chunk_key`, `start_north`); the mirror
+  owns the territory edge (`disc_chunks`); `volcano-split.lua` is the cut
+  DECISION only (fraction bounds, angle hash, chunk split, class fitting,
+  separation, slices/holds); the Builder owns when-to-decide.
+- **Pruned, do not rebuild**: the spot-deployment warp (`eon_detail_noise_at`, up
+  to 25 tiles), the audit / priority / 60 s re-assertion passes, the load-time
+  catch-up scan, the region index of overlapping cones (cost more than it saved),
+  the tile-witness existence gates.
+- **Cost, measured** (`tests/split_bench.lua`): steady state ~1.5 µs per chunk
+  event (surface short-circuit + died mirror lookup); the once-per-cone plan is
+  cached in `Builder.plans` and the cache is checked FIRST in `create` (the retry
+  path for a waiting slice must not re-enumerate the share); worst decision ~3 ms
+  (share ~1.7-2.1 ms at its floor, wedge internal ~1.0-1.2 ms) — see the table
+  below. Every past cost finding in the feature appendix is history; the lesson is
+  one sentence: a question the mirror already answered, or the engine already
+  answered, must not be recomputed or re-asked per chunk.
 
 **Gates** (`python3 tests/run_spot_mirror_tests.py`, ~2.5 min):
 
@@ -692,7 +493,8 @@ query, up to ~25 tiles). Measured cost of dropping it (`tests/spot_mirror_parity
 | `tests/live_server.py` | a real server in the BACKGROUND with rcon, for questions that need a game: `start`/`log`/`stop`/`restart`, then `rcon_probe.py` / `rcon_coverage.py`. `EON_LIVE_EXTRA=behemoth-enemies_0.0.8.zip` loads a mod beside ours (a dev probe in `tests/` is found by its bare name), which is how a compatibility question is asked without a second mod directory; `EON_PROBE_EXTRA` is the same one-liner for `probe_runtime_territory.py`. Both are off unless set, so no gate pays for them. | A session with a process tool should `prepare` once and run `command` under it instead: the tool owns the process, watches its stdout and notifies on exit, which a script cannot do for a session that is not running. factorio writes `server.log` ITSELF (`--console-log`), so the file is identical either way -- and that flag is what makes it work, since a `\| tee` pipeline puts a shell between the tool and the game (measured: the shutdown line is lost) and a plain `> server.log` leaves the tool nothing to watch |
 | `tests/probe_runtime_territory.py` (100% + 600% volcanism) | one territory per cone and that territory is exactly the mirror's chunk list; every volcano territory has a whole guard; a cone decided while most of its disc is still unrevealed; regenerating the same chunks changes nothing; every claim line cross-checks against a territory on the surface; plus REPORTED purity / unguarded / no-guard counts |
 | `features/lua-territory.feature` | the acceptance criteria themselves (AC-1..AC-15), each with the probe that proves it — the contract, not a summary |
-| `tests/builder_test.lua` | the claim path with no Factorio at all: one cone decided per event, a demolisher with a body, a second event creating nothing, a cone with no chunk of its own left alone -- and the per-chunk candidate set: CLOSED (nothing that overlaps a candidate is outside it, or a chunk could go to the wrong cone), one owner repeatably, and a cone reachable from its own region's coordinates. That block exists because a wrong candidate set shows up as a wrongly-claimed volcano, and the e2e tolerates 8 differing chunks, so it is not a net for this. |
+| `tests/builder_test.lua` | the claim path with no Factorio at all: one cone decided per event, a demolisher with a body, a second event creating nothing, a cone with no chunk of its own left alone, and the per-chunk candidate set: CLOSED (nothing that overlaps a candidate is outside it, or a chunk could go to the wrong cone), one owner repeatably, and a cone reachable from its own region's coordinates -- plus the CUT: two disjoint pieces that are the whole claim, guards one rung apart, every patrol point on its own piece, and a second piece claimed when a chunk of its own arrives. That block exists because a wrong candidate set shows up as a wrongly-claimed volcano, and the e2e tolerates 8 differing chunks, so it is not a net for this. |
+| `tests/split_probe.lua` | not a gate: the census of what a seed WOULD split (`lua tests/split_probe.lua <seed> <volcanism frequency>` prints the pairs and the reason every uncut cone was left alone). The tuning record for the cut. |
 
 Judgement calls the gates deliberately do NOT make: disc purity (the
 `core_fraction_for` trade-off) and share-level split bookkeeping between
@@ -705,22 +507,59 @@ unguarded, 0 unpredicted, 0 outside their own disc, every 16+ chunk territory
 patrolled; at 600%, 327 of 327 exact and 100% on volcano. So the density gate is
 not a compromise -- the engine's own placement answer lands on the volcano.
 
-**What the whole thing costs per chunk**, measured rather than assumed, and the
-findings that got it there — each one a question about the world that the mirror
-answers, asked over and over:
-- the cone's share was recomputed for every cone still waiting, on every chunk
-  event in reach: 8.42 ms per chunk at 100% volcanism, 20.7 at 600%. It is a pure
-  function of the cone, so it is enumerated once, when the territory is made.
-- the share was then walked calling `surface.is_chunk_generated` to satisfy one
-  engine precondition: 0.48 µs a call, 241,840 calls over a 1681-chunk reveal at
-  100% and 611,762 at 600%. The chunk that woke the mod IS generated, so the
-  precondition is met by construction whenever it is one of the cone's own.
-- the ring's cones were then tested for coverage with a wobble evaluation each: 87 µs
-  on the 62% of chunks whose own region holds no cone, because 25 ring cones is 25
-  noise evaluations. A plain distance test first — the wobble can only pull a point in
-  by its measured 40-tile bound — makes it 3 µs.
-- with those gone, the per-chunk cost is **0.13 ms at 600% volcanism** against
-  0.42-0.48, from two hash lookups and a handful of distance tests.
+**Cost history**: the per-chunk cost findings that got this section here are in the
+feature appendix; the current numbers are the split-cost table below, and the
+lesson is one sentence — a question the mirror already answered, or the engine
+already answered, is never recomputed or re-asked per chunk.
+
+**What the split costs, measured the same way** (`tests/split_bench.lua`, seed
+12345, ±4 regions, fake surface limited to the two writes):
+
+| | 100% | 200% | 600% |
+| --- | --- | --- | --- |
+| steady state, per chunk event | ~2 µs | ~1 µs | ~1 µs |
+| first touch, per chunk event (avg) | 92 µs | 98 µs | 108 µs |
+| worst single event (cone's first contact) | 10.8 ms | 9.5 ms | 9.6 ms |
+| plan once per cone (avg / worst) | 4.1 / 8.5 ms | 3.6 / 6.7 ms | 3.7 / 7.4 ms |
+
+Clean decomposition (min-of-5 on the worst cone, `tests/split_bench.lua`):
+share ~1.7-2.1 ms, wedge/fit internal ~1.0-1.2 ms, worst decision ~3.0 ms --
+about 18% of a 16.66 ms tick (the colder one-shot numbers above include
+GC/first-call in the standalone interpreter). Both halves are at measured
+floors: the share is a pure function of the cone, pruned by an un-wobbled
+bound and wobble-shared between the disc and ownership tests (disc_chunks),
+and the two slices of a cut sweep a full circle of UNIQUE directions at 2x
+density (the playtest's dent measure), so no wobble is evaluated twice. The
+class scan over CUT_STEPS is 42 trivial size_fraction calls. The only
+structural lever left is cross-event deferral (drain plans on a tick) --
+refused because the headless gates cannot tick, and the spike is inside the
+budget with 5x margin, paid once per cone. The plan is cached in `Builder.plans`
+and the cache is checked FIRST in `create` -- the retry path for a partially-claimed
+slice does NOT re-enumerate the share (that re-enumeration, on every event in
+reach until the cone settles, was the 362 µs first-touch average; the cache-first
+reorder made it 92 µs: the share is a pure function of the cone, so it is computed
+once, and the chunk that woke the mod is generated, so nothing about generation is
+ever asked). The enum reorder and the surface short-circuit are the two measured
+wins this section records; their rationale lives in the feature appendix. The steady-state number is a surface short-circuit, not a mirror win:
+`on_chunk_generated` now asks `get_territory_for_chunk` FIRST and skips when a
+territory already holds the chunk -- safe because the surface here only holds
+territories this mod created (engine expression index is off) and a created
+territory always carries the decided marker, so a non-nil answer can only mean
+"already claimed, nothing to do". The marker stays for the states the surface
+cannot hold: "unseen" and "empty" cones (nothing on the surface to show), and
+territories REMOVED by documented API paths (`LuaTerritory::destroy`,
+`delete_chunk` / `set_territory_for_chunks` / `clear_territory_for_chunks`
+mutate chunk ownership, and the e2e itself deletes chunks), plus
+on_surface_cleared resets. The conquest case needs NO marker, and it is
+probe-verified (tests/eon-probe-territory-lifecycle, 2.0.77): a territory
+whose last segmented unit is destroyed stays valid, all its chunks keep
+answering `get_territory_for_chunk`, and `regenerate_segmented_units` still
+works -- the engine never auto-destroys an unguarded territory; it just stops
+showing it on maps. So a conquered cone is a still-existing, empty territory
+that keeps answering the short-circuit, and demolishers never respawn in
+vanilla. The worst single event, a big cone's first contact, fits inside one
+16.66 ms tick; the split itself adds only the ~1.5-2 ms wedge work to the
+pre-existing once-per-cone share+patrol cost.
 
 The lesson worth keeping: **every one of those was a recomputation of something the
 mirror had already decided, and two of them were answering a question the engine had

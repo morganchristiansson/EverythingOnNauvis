@@ -27,7 +27,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     node --version && npm --version
 
 # ── npm global packages ─────────────────────────────────────────────────────
-RUN npm install -g @earendil-works/pi-coding-agent@0.87.1 && \
+RUN npm install -g @earendil-works/pi-coding-agent@1.0.4 && \
     pi --version
 
 

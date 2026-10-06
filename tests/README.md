@@ -19,6 +19,18 @@ whose `control.lua` runs in `on_init` and writes a JSON report into
 | `probe_fruit.py` | `eon-probe-fruit` | gleba fruit placement | `python3 tests/probe_fruit.py` |
 | `run_tests.py` | — | `--dump-data` data.raw assertions (fast, CI-able) | `python3 tests/run_tests.py` |
 
+## The runtime territory gates (no Factorio needed)
+
+| tool | question it answers | run |
+|---|---|---|
+| `run_spot_mirror_tests.py` | every gate of the runtime volcano territories, selftest to end-to-end | `python3 tests/run_spot_mirror_tests.py [--quick]` |
+| `builder_test.lua` | the CLAIM path against a fake surface, and the CUT: two disjoint pieces that are the whole claim, guards one rung apart, every patrol point on its own piece, the second piece claimed when a chunk of its own arrives | `lua tests/builder_test.lua` |
+| `demolisher_turn_test.lua` | the real body layout honours `patrolling_turn_radius` | `lua tests/demolisher_turn_test.lua` |
+| `split_probe.lua` | not a gate: the census of what a seed WOULD split into which pairs, and the reason every uncut cone was left alone (the tuning record for the cut) | `lua tests/split_probe.lua [seed] [volcanism frequency]` |
+| `split_shape.lua` | not a gate: what the two patrol loops actually look like — how close they come, how sharp the worst corner is, whether either stands on the other's ground | `lua tests/split_shape.lua [seed] [volcanism frequency]` |
+| `split_bench.lua` | not a gate: the split's tick cost — plan_once per cone, first touch, steady state — judged against a 16.66 ms tick | `lua tests/split_bench.lua [seed] [volcanism frequency] [regions]` |
+| `probe_territory_lifecycle.py` | engine fact: a territory outlives its last demolisher (valid, still answers get_territory_for_chunk, regenerates) — the conquest case needs no marker | `python3 tests/probe_territory_lifecycle.py` |
+
 ## Evidence / scratch (archived, not shipped)
 
 Session probes that produced the numbers behind the shipped features (the

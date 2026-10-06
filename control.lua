@@ -11,8 +11,9 @@
 -- expression index is switched off (see map-generation/enemies.lua) and the
 -- territories are built here from noise-mirror/: for every generated chunk the
 -- mirror says which volcano cone owns it and how wide that cone is, and each cone
--- is turned into exactly ONE surface.create_territory call carrying its complete
--- chunk list. The mirror itself never touches Factorio, so it is testable and
+-- is turned into one surface.create_territory call per SLICE of its claim carrying
+-- that slice's complete chunk list -- one call, or two when the volcano is big enough
+-- to carry two guards (volcano-split.lua cuts the claim through its centre). The mirror itself never touches Factorio, so it is testable and
 -- benchmarkable on its own (tests/noise-mirror/selftest.lua, tests/noise-mirror/bench.lua).
 local VolcanoTerritory = require("volcano-territory")
 
@@ -71,7 +72,11 @@ local function builder_for(surface)
   local state = storage[STATE_KEY]
   state.created = state.created or {}
   if not builders[surface.index] then
-    builders[surface.index] = VolcanoTerritory.new(surface, { created = state.created })
+    -- The mirror context is handed in as VALUES (map_gen_settings is a plain
+    -- table; the builder reads nothing else from the surface).
+    builders[surface.index] = VolcanoTerritory.new(surface, {
+      created = state.created, map_gen_settings = surface.map_gen_settings,
+    })
   end
   return builders[surface.index]
 end
@@ -104,9 +109,10 @@ end)
 -- (reset.lua Public.perform_reset), and then sets a NEW seed on the surface's
 -- map_gen_settings. Everything we hold describes the map that just went away.
 --
--- The seed is never cached in storage: Builder.new reads
--- surface.map_gen_settings.seed and the builder itself is not persisted, so
--- dropping the cached builder is all it takes to pick the new seed up. The
+-- The seed is never cached in storage: builder_for reads
+-- surface.map_gen_settings and hands it to Builder.new as plain values, and the
+-- builder itself is not persisted, so dropping the cached builder is all it takes
+-- to pick the new seed up. The
 -- marker table is the part that has to be thrown away explicitly, and it is not
 -- obvious: a cone id is "seed<stream>@<region>:<region>" and does NOT contain
 -- the map seed, so the new map's cones come back under the SAME ids while
