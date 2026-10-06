@@ -1,26 +1,71 @@
 local data_util = require("data-util")
-local asteroid_util = require("__space-age__.prototypes.planet.asteroid-spawn-definitions")
 
--- Remove planets
+-- The four non-Nauvis planets.
+--
+-- Setting eon-restore-space-locations ON (default): they come back as SPACE
+-- LOCATIONS -- the same prototype as solar-system-edge and shattered-planet, which
+-- is the engine's native "you can travel here but never land". Starmap position,
+-- asteroid fields and the vanilla trip graph (nauvis -> vulcanus/gleba/fulgora ->
+-- aquilo -> solar-system-edge) are all restored; only surfaces are not: nothing
+-- exists to land on but Nauvis. The planet prototypes are deleted outright (less
+-- data, and nothing but the deleted technologies referenced them).
+--
+-- Setting OFF: the old behavior -- planets hidden, map_gen_settings nilled, every
+-- interplanetary connection deleted, the one trip being straight from Nauvis to
+-- the solar-system edge.
+local OTHER_PLANETS = { "vulcanus", "gleba", "fulgora", "aquilo" }
+local restore_locations = settings.startup["eon-restore-space-locations"].value
 
-data.raw.planet["aquilo"].map_gen_settings = nil
-if data.raw.planet["aquilo"] then
-  data.raw.planet["aquilo"].hidden = true
-end
+if restore_locations then
+  -- Re-add each planet as a space-location carrying its starmap/asteroid fields.
+  local locations = {}
+  for _, name in ipairs(OTHER_PLANETS) do
+    local p = data.raw.planet[name]
+    if p then
+      locations[#locations + 1] = {
+        type = "space-location",
+        name = name,
+        icon = p.icon,
+        starmap_icon = p.starmap_icon,
+        starmap_icon_size = p.starmap_icon_size,
+        order = p.order,
+        subgroup = p.subgroup,
+        gravity_pull = p.gravity_pull,
+        distance = p.distance,
+        orientation = p.orientation,
+        magnitude = p.magnitude,
+        label_orientation = p.label_orientation,
+        asteroid_spawn_influence = p.asteroid_spawn_influence,
+        asteroid_spawn_definitions = p.asteroid_spawn_definitions,
+      }
+      data_util.delete_prototype("planet", name)
+    end
+  end
+  data:extend(locations)
 
-data.raw.planet["fulgora"].map_gen_settings = nil
-if data.raw.planet["fulgora"] then
-  data.raw.planet["fulgora"].hidden = true
-end
+  -- The vanilla trip graph, kept (the 7 interplanetary connections below are
+  -- only deleted in the off branch), and the edge again only reachable from
+  -- Aquilo: the first voyage is the normal easy nauvis->vulcanus/gleba/fulgora
+  -- kind, and the nasty edge trip stays a late-game, Aquilo-gated one.
+  data.raw["space-connection"]["aquilo-solar-system-edge"].from = "aquilo"
+else
+  for _, name in ipairs(OTHER_PLANETS) do
+    if data.raw.planet[name] then
+      data.raw.planet[name].map_gen_settings = nil
+      data.raw.planet[name].hidden = true
+    end
+  end
 
-data.raw.planet["gleba"].map_gen_settings = nil
-if data.raw.planet["gleba"] then
-  data.raw.planet["gleba"].hidden = true
-end
-
-data.raw.planet["vulcanus"].map_gen_settings = nil
-if data.raw.planet["vulcanus"] then
-  data.raw.planet["vulcanus"].hidden = true
+  -- delete space connections
+  data_util.delete_prototype("space-connection", "nauvis-vulcanus")
+  data_util.delete_prototype("space-connection", "nauvis-gleba")
+  data_util.delete_prototype("space-connection", "nauvis-fulgora")
+  data_util.delete_prototype("space-connection", "vulcanus-gleba")
+  data_util.delete_prototype("space-connection", "gleba-fulgora")
+  data_util.delete_prototype("space-connection", "gleba-aquilo")
+  data_util.delete_prototype("space-connection", "fulgora-aquilo")
+  data.raw["space-connection"]["aquilo-solar-system-edge"].from = "nauvis"
+  -- data_util.delete_prototype("space-connection", "aquilo-solar-system-edge")
 end
 
 -- Every space-platform request defaults to the planet of its item's
@@ -35,17 +80,6 @@ for _, types in pairs(data.raw) do
     end
   end
 end
-
--- delete space connections
-data_util.delete_prototype("space-connection", "nauvis-vulcanus")
-data_util.delete_prototype("space-connection", "nauvis-gleba")
-data_util.delete_prototype("space-connection", "nauvis-fulgora")
-data_util.delete_prototype("space-connection", "vulcanus-gleba")
-data_util.delete_prototype("space-connection", "gleba-fulgora")
-data_util.delete_prototype("space-connection", "gleba-aquilo")
-data_util.delete_prototype("space-connection", "fulgora-aquilo")
-data.raw["space-connection"]["aquilo-solar-system-edge"].from = "nauvis"
--- data_util.delete_prototype("space-connection", "aquilo-solar-system-edge")
 
 -- remove space age menu simulations that break
 -- data.raw["utility-constants"]["default"].main_menu_simulations.nauvis_solar_power_construction = nil  -- Safe simulations
@@ -102,8 +136,10 @@ data.raw["utility-constants"]["default"].main_menu_simulations.nauvis_rocket_fac
 
 -- Delete atomic-bomb ground effects for deleted planets (yoinked from
 -- EverythingOnNauvis-Patches, which filters them out of atomic-rocket instead).
--- Aquilo and Vulcanus no longer exist, so nuke-effects-aquilo (ammoniacal-ocean)
--- and nuke-effects-vulcanus (lava) can never legally trigger. Deleting them is
+-- Aquilo and Vulcanus no longer exist as surfaces (deleted planets, or unlandable
+-- space-locations with eon-restore-space-locations), so nuke-effects-aquilo
+-- (ammoniacal-ocean) and nuke-effects-vulcanus (lava) can never legally trigger.
+-- Deleting them is
 -- better than gating them behind surface conditions: the bomb then always
 -- leaves nuclear ground on Nauvis. nuke-effects-space (space platforms) and
 -- nuke-effects-nauvis are kept.

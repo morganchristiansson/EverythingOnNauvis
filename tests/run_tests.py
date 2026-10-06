@@ -221,8 +221,22 @@ def test_setting_off(data):
         check("nauvis2 clones the real map_gen_settings",
               nauvis2.get("map_gen_settings") ==
               planets.get("nauvis", {}).get("map_gen_settings"))
-    check("solar-system edge points at nauvis2 (the live planet)",
-          data.get("space-connection", {}).get("aquilo-solar-system-edge", {}).get("from") == "nauvis2")
+    check("solar-system edge points at aquilo (restored trip graph)",
+          data.get("space-connection", {}).get("aquilo-solar-system-edge", {}).get("from") == "aquilo")
+    # eon-restore-space-locations is on in this block: the four planets are gone
+    # as planets (deleted, not hidden) and re-added as unlandable space-locations,
+    # and the vanilla interplanetary connections are back.
+    other_planets = ["vulcanus", "gleba", "fulgora", "aquilo"]
+    check("other planets are deleted as planet prototypes",
+          not any(name in planets for name in other_planets))
+    locations = data.get("space-location", {})
+    check("all four planets exist as space-locations",
+          all(name in locations for name in other_planets))
+    connections = data.get("space-connection", {})
+    check("vanilla interplanetary connections are restored",
+          all(name in connections for name in
+              ["nauvis-vulcanus", "nauvis-gleba", "nauvis-fulgora", "vulcanus-gleba",
+               "gleba-fulgora", "gleba-aquilo", "fulgora-aquilo"]))
     # The original nauvis is the dummy: hidden from the starmap, and every
     # default_import_location swept onto the clone (remove-planets.lua pointed them
     # all at "nauvis", which no longer exists as a destination).
@@ -279,6 +293,21 @@ def test_setting_on(data):
     check("nauvis2 planet absent (clone setting off)", "nauvis2" not in planets)
     check("solar-system edge points at nauvis",
           data.get("space-connection", {}).get("aquilo-solar-system-edge", {}).get("from") == "nauvis")
+    # eon-restore-space-locations is off in this block: hidden planets, no
+    # space-locations, no interplanetary routes.
+    other_planets = ["vulcanus", "gleba", "fulgora", "aquilo"]
+    check("other planets kept but hidden with no map_gen_settings",
+          all(name in planets and planets[name].get("hidden") is True
+              and not planets[name].get("map_gen_settings")
+              for name in other_planets))
+    locations = data.get("space-location", {})
+    check("no restored space-locations",
+          not any(name in locations for name in other_planets))
+    connections = data.get("space-connection", {})
+    check("interplanetary connections are deleted",
+          not any(name in connections for name in
+                  ["nauvis-vulcanus", "nauvis-gleba", "nauvis-fulgora", "vulcanus-gleba",
+                   "gleba-fulgora", "gleba-aquilo", "fulgora-aquilo"]))
     # Freeplay: nothing is hidden and imports stay on the real nauvis.
     check("original nauvis planet is not hidden",
           not planets.get("nauvis", {}).get("hidden"))

@@ -2,6 +2,20 @@
 Version: 0.1.13
 Date: 2026-09-XX
   Changes:
+    - New startup setting eon-restore-space-locations (on by default): instead of
+      deleting Vulcanus, Fulgora, Gleba and Aquilo, they come back as unlandable
+      SPACE LOCATIONS -- the same prototype as the solar system edge and the
+      shattered planet. The vanilla trip graph is restored (nauvis ->
+      vulcanus/gleba/fulgora -> aquilo -> solar-system-edge, with every planet's
+      asteroid field), so the first voyage is the normal easy kind instead of the
+      old straight nauvis->edge slog (edge-grade asteroids from day one), while no
+      surface exists anywhere but Nauvis so landing is impossible everywhere else
+      and play stays on Nauvis. The planet prototypes are deleted in the on state
+      (less data loaded; nothing but the discovery/removal machinery referenced
+      them); the off state keeps the old behavior (only Nauvis, solo trip to the
+      edge, aquilo-solar-system-edge.from = nauvis). Interacts with
+      eon-nauvis2-clone: the clone's edge rewire is skipped while the setting is
+      on, so the restored progression wins.
     - Territory state is stored PER SURFACE (storage keyed by surface.name), not in one
       shared marker table: a reset that replaces the map (clear in place, or a fresh
       surface run alongside the old one) now gets clean state per surface, and an old

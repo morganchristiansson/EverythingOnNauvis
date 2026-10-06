@@ -21,9 +21,14 @@ if settings.startup["eon-nauvis2-clone"].value then
   local nauvis2 = table.deepcopy(data.raw.planet["nauvis"])
   nauvis2.name = "nauvis2"
   data:extend{ nauvis2 }
-  -- Space travel's destination at the edge of the solar system must point at the
-  -- LIVE planet, not at the dummy (remove-planets.lua pointed it at nauvis).
-  data.raw["space-connection"]["aquilo-solar-system-edge"].from = "nauvis2"
+  -- Space travel's destination at the edge of the solar system: point it at the
+  -- LIVE planet (nauvis2), not the dummy -- unless eon-restore-space-locations
+  -- brought back the normal trip graph, in which case the edge is reached from the
+  -- aquilo space-location (remove-planets.lua sets .from = "aquilo") and a rewiring
+  -- of the edge's origin would break that progression.
+  if not settings.startup["eon-restore-space-locations"].value then
+    data.raw["space-connection"]["aquilo-solar-system-edge"].from = "nauvis2"
+  end
   -- The original nauvis is the dummy now: hide it from the starmap exactly like
   -- every other removed planet. Its map_gen_settings must NOT be nilled -- the
   -- primary surface (index 1) is generated from them at save creation, and a

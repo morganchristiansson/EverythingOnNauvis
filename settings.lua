@@ -26,5 +26,12 @@ data:extend({
         setting_type = "startup",
         default_value = false,
         order = "d"
+    },
+    {
+        type = "bool-setting",
+        name = "eon-restore-space-locations",
+        setting_type = "startup",
+        default_value = true,
+        order = "e"
     }
 })

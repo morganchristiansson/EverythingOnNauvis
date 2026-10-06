@@ -499,7 +499,9 @@ failed before):
   gate). Deletion of that surface is legal, so the reset is: delete →
   create_surface → teleport players; on_pre_surface_deleted clears the surface's
   state, and `prototypes/nauvis2.lua` (required from data-final-fixes) rewires
-  `aquilo-solar-system-edge.from` to nauvis2, hides the original nauvis planet
+  `aquilo-solar-system-edge.from` to nauvis2 — unless `eon-restore-space-locations`
+  is on (default since 0.1.13), in which case the edge stays at aquilo — hides the
+  original nauvis planet
   (it is the dummy; its map_gen_settings must NOT be nilled — the primary surface
   at index 1 is generated from them), and re-sweeps every `default_import_location`
   onto the clone (remove-planets.lua had pointed them all at nauvis). There is NO
@@ -514,6 +516,22 @@ failed before):
   works in data-final-fixes; the mod-prefixed `"EverythingOnNauvis-morganc.…"` form is
   nil and aborts data loading ("./prototypes/nauvis2.lua: attempt to index field …
   (a nil value)", probe-verified). Same convention as the control stage.
+- **The four non-Nauvis planets and `eon-restore-space-locations` (default ON, 0.1.13):**
+  ON deletes the `planet` prototypes (vulcanus/gleba/fulgora/aquilo) in
+  data-final-fixes and re-adds them as `space-location` prototypes — the same
+  prototype as solar-system-edge and shattered-planet, the engine's native
+  "travel here, never land" — restores every vanilla space-connection and the SSE
+  edge's `from = "aquilo"`. OFF is the old behavior: planets hidden with
+  map_gen_settings nilled, all interplanetary connections deleted, the only trip
+  nauvis->solar-system-edge. The engine's asteroid fields follow the location
+  (`asteroid_spawn_definitions` copied from the planet); every
+  `default_import_location` stays swept to nauvis/nauvis2 either way because the
+  destinations have no surface to import from. Data-updates (map-generation/*)
+  reads the four planets' map_gen_settings to build the merged nauvis — deletion
+  happens AFTER, in data-final-fixes, so the merge is unaffected. Probe
+  (`tests/rcon_solarsystem.py`, 2.0.77): `game.planets` = nauvis only, the four
+  destinations are `space_location` prototypes, 9 connections, and
+  `aquilo-solar-system-edge = aquilo>solar-system-edge`.
 - **The short-circuit**: `on_chunk_generated` asks `get_territory_for_chunk` first
   and skips when a territory holds the chunk — safe because the surface here only
   holds territories the mod created and a created territory always carries the
